@@ -1,0 +1,7 @@
+grammar;
+
+pub Command: (String, String) = {
+    "s/" <regex:Pattern> "/" <replacement:Pattern> "/" => (regex, replacement)
+};
+
+Pattern: String = <s:r"[^/]*"> => s.to_string();

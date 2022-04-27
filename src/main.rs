@@ -1,3 +1,6 @@
+#[macro_use] extern crate lalrpop_util;
+lalrpop_mod!(pub posix); // synthesized by LALRPOP
+
 use clap::Parser;
 use regex::Regex;
 use std::io::{self, Result};
@@ -8,26 +11,29 @@ use std::process::exit;
 struct Cli {
     /// The pattern to find
     #[clap()]
-    pattern: String,
-    /// The replacement text (may include backreferences $1)
-    #[clap()]
-    replacement: String,
+    command: String // s/regex/replacement/
 }
 
 fn main() -> Result<()> {
     let args = Cli::parse();
     let stdin = io::stdin();
 
-    let regex = match Regex::new(&args.pattern) {
-        Ok(regex) => regex,
+    let (regex, replacement) = match posix::CommandParser::new().parse(&args.command) {
+        Ok((p, r)) => match Regex::new(&p) {
+            Ok(regex) => (regex, r),
+            Err(err) => {
+                println!("error parsing regex: {}", err);
+                exit(1);
+            }
+        },
         Err(err) => {
-            println!("{}", err);
+            println!("error parsing command: {}", err);
             exit(1);
         }
     };
     let mut buf = String::new();
     while stdin.read_line(&mut buf)? != 0 {
-        print!("{}", regex.replace(&buf, &args.replacement));
+        print!("{}", regex.replace(&buf, &replacement));
         buf.clear();
     }
     Ok(())

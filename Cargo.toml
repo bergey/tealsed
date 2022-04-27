@@ -7,4 +7,9 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3.0.10", features = ["derive"] }
+lalrpop-util = { versien = "0.19.7", features = ["lexer"] }
 regex = "1"
+regex-syntax = "0.6.25"
+
+[build-dependencies]
+lalrpop = "0.19.6"
