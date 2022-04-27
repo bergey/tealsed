@@ -7,7 +7,10 @@ use std::io;
 struct Cli {
     /// The pattern to find
     #[clap()]
-    pattern: String
+    pattern: String,
+    /// The replacement text (may include backreferences $1)
+    #[clap()]
+    replacement: String
 }
 
 fn main() {
@@ -17,9 +20,7 @@ fn main() {
     let regex = Regex::new(&args.pattern).unwrap();
     let mut buf = String::new();
     while stdin.read_line(&mut buf).unwrap() != 0 {
-        if regex.is_match(&buf) {
-            print!("{}", buf);
-        }
+        print!("{}", regex.replace(&buf, &args.replacement));
         buf.clear();
     }
 }
