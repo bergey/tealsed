@@ -1,7 +1,34 @@
-grammar;
+use regex_syntax::ast::*;
 
-pub Command: (String, String) = {
-    "s/" <regex:Pattern> "/" <replacement:Pattern> "/" => (regex, replacement)
+// for now, put the same invalid span everywhere
+grammar(span: Span);
+
+pub Regex: Ast = {
+    <mut asts: Ast+> => if asts.len() == 1 {
+        asts.pop().unwrap()
+    } else { Ast::Concat(Concat{
+        span: span,
+        asts: asts
+    })},
+    "" => Ast::Empty(span),
 };
 
-Pattern: String = <s:r"[^/]*"> => s.to_string();
+Ast: Ast = {
+    Dot,
+    Literal
+}
+
+
+// Can't write the grammar for a full command because we accept multiple separators
+// This parser handles a single regex / replacement, and we'll split on separator before we get here
+// And also un-escape escaped separators?
+
+Dot: Ast = "." => Ast::Dot(span);
+
+Literal: Ast = {
+    <c:r"[^.\\]"> => Ast::Literal(Literal {
+        span: span,
+        kind: LiteralKind::Verbatim,
+        c: c.chars().nth(0).unwrap()
+    })
+};

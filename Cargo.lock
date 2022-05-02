@@ -21,6 +21,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_ok"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ef7e97b22d68f653dce5ebe143ece12a81dacbfb1d62ce22e388cb2c70dc5a0"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -541,6 +547,7 @@ dependencies = [
 name = "tsed"
 version = "0.1.0"
 dependencies = [
+ "assert_ok",
  "clap",
  "lalrpop",
  "lalrpop-util",
