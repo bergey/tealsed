@@ -12,8 +12,10 @@ use nom::{
 };
 use regex_syntax::ast::{Ast, Literal, LiteralKind, Position, Span};
 
-type Parser<'a> = IResult<&'a str, Ast>;
+type Progress<'a> = IResult<&'a str, Ast>;
 
+// probably regexen are short enough that position isn't that important
+// could pass Position around, make it part of Input, but need to implement ParseError trait
 const ZERO_POSITION: Position = Position {
     offset: 0,
     line: 0,
@@ -25,11 +27,11 @@ const ZERO_SPAN: Span = Span {
     end: ZERO_POSITION,
 };
 
-fn empty(s: &str) -> Parser {
+fn empty(s: &str) -> Progress {
     Ok((s, Ast::Empty(ZERO_SPAN.clone())))
 }
 
-fn dot(s: &str) -> Parser {
+fn dot(s: &str) -> Progress {
     let (s, _) = char('.')(s)?;
     Ok((s, Ast::Dot(ZERO_SPAN.clone())))
 }
@@ -37,7 +39,7 @@ fn dot(s: &str) -> Parser {
 // TODO figure out which are actually special
 const SPECIAL_CHARS : &str = ".\\[]{}^$";
 
-fn literal(s: &str) -> Parser {
+fn literal(s: &str) -> Progress {
     let (s, lit) = is_not(SPECIAL_CHARS)(s)?;
     Ok((s, Ast::Literal(Literal{
         span: ZERO_SPAN.clone(),
@@ -47,7 +49,8 @@ fn literal(s: &str) -> Parser {
 }
 
 pub fn posix(s: &str) -> Result<Ast, nom::error::Error<&str>> {
-    // TODO everything
+    // TODO posix Extended Regular Expressions
+    // according to `man re_format` or IEEE 1003.2
     let (_, ast) = alt((literal, dot, empty))(s).finish()?;
     Ok(ast)
 }
