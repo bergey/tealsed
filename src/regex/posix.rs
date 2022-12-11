@@ -123,7 +123,7 @@ fn branch(s: &str) -> Progress {
     }
 }
 
-pub fn posix(s: &str) -> Result<Ast, nom::error::Error<&str>> {
+pub fn parse(s: &str) -> Result<Ast, nom::error::Error<&str>> {
     // TODO posix Extended Regular Expressions
     // according to `man re_format` or IEEE 1003.2
     let (_, ast) = branch(s).finish()?;
@@ -132,7 +132,7 @@ pub fn posix(s: &str) -> Result<Ast, nom::error::Error<&str>> {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::equivalent::Equivalent;
+    use crate::regex::equivalent::Equivalent;
     use super::*;
     use assert_ok::assert_ok;
     use regex_syntax::ast::parse::Parser;
@@ -140,7 +140,7 @@ pub mod tests {
 
     fn match_modern_syntax(pattern: &str) {
         let expected = Parser::new().parse(pattern).unwrap();
-        let actual = assert_ok!(posix(pattern));
+        let actual = assert_ok!(parse(pattern));
         if !actual.equivalent(&expected) {
             assert_eq!(actual, expected);
         }
@@ -149,7 +149,7 @@ pub mod tests {
     #[test]
     fn literals() {
         let input = "this is a valid regex";
-        let ast = assert_ok!(posix(&input));
+        let ast = assert_ok!(parse(&input));
         match &ast {
             Ast::Concat(c) => assert_eq!(c.asts.len(), input.len()),
             _ => panic!("unexpected regex parse: {:?}", ast),
@@ -158,7 +158,7 @@ pub mod tests {
 
     #[test]
     fn wildcard_dot() {
-        let ast = assert_ok!(posix("."));
+        let ast = assert_ok!(parse("."));
         match &ast {
             Ast::Dot(_) => (),
             _ => panic!("unexpected regex parse: {:?}", ast),

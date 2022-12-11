@@ -1,14 +1,13 @@
 // use crate::parser::*;
 
 use clap::Parser;
-use regex::Regex;
+use ::regex::Regex;
 use regex_syntax::ast::{Ast};
 use std::io;
 use std::process::exit;
 
-mod parser;
-mod equivalent;
-use parser::{posix};
+mod regex;
+use crate::regex::posix;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -43,7 +42,7 @@ fn parse_command(cmd: &str) -> Result<(Ast, String), String> {
             let sep = chars.next().unwrap();
             let mut words = split_on(&cmd[2..], &sep);
             if words.len() == 2 {
-                match posix(&words[0]) {
+                match posix::parse(&words[0]) {
                     Ok(regex) => Ok((regex, words.pop().unwrap())),
                     Err(err) => Err(format!("error parsing regex: {}", err)),
                 }
