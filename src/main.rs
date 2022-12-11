@@ -7,6 +7,7 @@ use std::io;
 use std::process::exit;
 
 mod parser;
+mod equivalent;
 use parser::{posix};
 
 #[derive(Parser, Debug)]
