@@ -77,7 +77,7 @@ fn bound(s: &str) -> IResult<&str, RepetitionKind> {
     let (s, _) = char('{')(s)?;
     let (s, min) = u32(s)?;
     let (s, o_comma) = opt(char(','))(s)?;
-    match o_comma {
+    let (s, bound) = match o_comma {
         None => Ok((s, RepetitionKind::Range(RepetitionRange::Exactly(min)))),
         Some(_) => {
             let (s, o_max) = opt(u32)(s)?;
@@ -87,7 +87,9 @@ fn bound(s: &str) -> IResult<&str, RepetitionKind> {
                 Some(max) => Ok((s, RepetitionKind::Range(RepetitionRange::Bounded(min, max))))
             }
         }
-    }
+    }?;
+    let (s, _) = char('}')(s)?;
+    Ok((s, bound))
 }
 
 fn quantified_piece(s: &str) -> Progress {
@@ -111,10 +113,14 @@ fn quantified_piece(s: &str) -> Progress {
 
 fn branch(s: &str) -> Progress {
     let (s, atoms) = many1(quantified_piece)(s)?;
-    Ok((s, Ast::Concat(Concat{
-        span: ZERO_SPAN,
-        asts: atoms
-    })))
+    if atoms.len() == 1 { // TODO make this less clunky or define a helper
+        Ok((s, atoms.into_iter().nth(0).unwrap()))
+    } else {
+        Ok((s, Ast::Concat(Concat{
+            span: ZERO_SPAN,
+            asts: atoms
+        })))
+    }
 }
 
 pub fn posix(s: &str) -> Result<Ast, nom::error::Error<&str>> {
@@ -185,7 +191,9 @@ pub mod tests {
     fn match_modern_syntax(pattern: &str) {
         let expected = Parser::new().parse(pattern).unwrap();
         let actual = assert_ok!(posix(pattern));
-        assert!(actual.equivalent(&expected));
+        if !actual.equivalent(&expected) {
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]
@@ -202,13 +210,7 @@ pub mod tests {
     fn wildcard_dot() {
         let ast = assert_ok!(posix("."));
         match &ast {
-            Ast::Concat(c) => {
-                assert_eq!(c.asts.len(), 1);
-                match c.asts[0] {
-                    Ast::Dot(_) => (),
-                    _ => panic!("unexpected regex parse: {:?}", ast),
-                }
-            },
+            Ast::Dot(_) => (),
             _ => panic!("unexpected regex parse: {:?}", ast),
         }
     }
@@ -217,4 +219,30 @@ pub mod tests {
     fn star() {
         match_modern_syntax("foo*");
     }
+
+    #[test]
+    fn plus() {
+        match_modern_syntax("a+");
+    }
+
+    #[test]
+    fn question() {
+        match_modern_syntax("ab?");
+    }
+
+    #[test]
+    fn exact_count() {
+        match_modern_syntax("o{2}")
+    }
+
+    #[test]
+    fn min_count() {
+        match_modern_syntax("x{2,}")
+    }
+
+    #[test]
+    fn range() {
+        match_modern_syntax("x{2,5}")
+    }
+    
 }
