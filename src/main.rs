@@ -7,14 +7,17 @@ use std::io;
 use std::process::exit;
 
 mod regex;
-use crate::regex::posix;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Cli {
     /// The pattern to find
-    #[clap()]
+    #[command()]
     command: String, // s/regex/replacement/
+    #[arg(short='E', help="posix extended regexp syntax")]
+    extended_syntax: bool,
+    #[arg(short='R', help="rust regexp syntax")]
+    rust_syntax: bool,
 }
 
 fn split_on(s: &str, sep: &char) -> Vec<String> {
@@ -35,14 +38,14 @@ fn split_on(s: &str, sep: &char) -> Vec<String> {
 }
 
 // TODO better error handling
-fn parse_command(cmd: &str) -> Result<(Ast, String), String> {
+fn parse_command(cmd: &str, syntax: regex::Syntax) -> Result<(Ast, String), String> {
     let mut chars = cmd.chars();
     match chars.next().unwrap() {
         's' => {
             let sep = chars.next().unwrap();
             let mut words = split_on(&cmd[2..], &sep);
             if words.len() == 2 {
-                match posix::parse(&words[0]) {
+                match regex::parse(syntax, &words[0]) {
                     Ok(regex) => Ok((regex, words.pop().unwrap())),
                     Err(err) => Err(format!("error parsing regex: {}", err)),
                 }
@@ -59,9 +62,18 @@ fn parse_command(cmd: &str) -> Result<(Ast, String), String> {
 
 fn main() -> io::Result<()> {
     let args = Cli::parse();
+
+    let syntax = match (std::env::args().nth(0), args.rust_syntax, args.extended_syntax) {
+        (_, true, false) => regex::Syntax::Rust,
+        (_, false, true) => regex::Syntax::PosixExtended,
+        (_, true, true) => panic!("must pick one of -R or -E"),
+        (Some(cmd), false, false) if cmd == "sed" => regex::Syntax::PosixExtended, // TODO posix basic should be default
+        _ => regex::Syntax::Rust,
+    };
+
     let stdin = io::stdin();
 
-    let (regex, replacement) = match parse_command(&args.command) {
+    let (regex, replacement) = match parse_command(&args.command, syntax) {
         Ok((regex_ast, replacement)) => {
             (Regex::new(&format!("{}", regex_ast)).unwrap(), replacement)
         }

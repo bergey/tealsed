@@ -13,6 +13,7 @@ type Progress<'a> = IResult<&'a str, Ast>;
 
 // probably regexen are short enough that position isn't that important
 // could pass Position around, make it part of Input, but need to implement ParseError trait
+// will also need capture index at some point
 const ZERO_POSITION: Position = Position {
     offset: 0,
     line: 0,
