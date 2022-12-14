@@ -1,19 +1,20 @@
 // use crate::parser::*;
 
 use clap::Parser;
-use ::regex::Regex;
-use regex_syntax::ast::{Ast};
 use std::io;
-use std::process::exit;
 
+mod commands;
 mod regex;
+use commands::Command;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// The pattern to find
     #[command()]
-    command: String, // s/regex/replacement/
+    command_or_file: String, // s/regex/replacement/
+    #[arg(short='e')]
+    commands: Vec<String>,
     #[arg(short='E', help="posix extended regexp syntax")]
     extended_syntax: bool,
     #[arg(short='R', help="rust regexp syntax")]
@@ -38,25 +39,23 @@ fn split_on(s: &str, sep: &char) -> Vec<String> {
 }
 
 // TODO better error handling
-fn parse_command(cmd: &str, syntax: regex::Syntax) -> Result<(Ast, String), String> {
+fn parse_command(cmd: &str, syntax: regex::Syntax) -> Result<Command, std::io::Error> {
     let mut chars = cmd.chars();
     match chars.next().unwrap() {
         's' => {
             let sep = chars.next().unwrap();
             let mut words = split_on(&cmd[2..], &sep);
             if words.len() == 2 {
-                match regex::parse(syntax, &words[0]) {
-                    Ok(regex) => Ok((regex, words.pop().unwrap())),
-                    Err(err) => Err(format!("error parsing regex: {}", err)),
-                }
+                regex::parse(syntax, &words[0])
+                    .map(|regex| Command::S(regex, words.pop().unwrap()))
             } else {
-                Err(format!(
+                Err(io::Error::new(io::ErrorKind::InvalidInput, format!(
                     "unexpected number of command arguments: {}",
                     words.len()
-                ))
+                )))
             }
         }
-        _ => Err("unknown command letter".to_string()),
+        _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "unknown command letter".to_string())),
     }
 }
 
@@ -73,19 +72,36 @@ fn main() -> io::Result<()> {
 
     let stdin = io::stdin();
 
-    let (regex, replacement) = match parse_command(&args.command, syntax) {
-        Ok((regex_ast, replacement)) => {
-            (Regex::new(&format!("{}", regex_ast)).unwrap(), replacement)
-        }
-        Err(err) => {
-            eprintln!("{}", err);
-            exit(1);
-        }
+
+    let commands: Vec<Command> = if args.commands.len() == 0 {
+        let c = parse_command(&args.command_or_file, syntax)?;
+        Vec::from([c])
+    } else {
+        args.commands.iter().map(|c| parse_command(&c, syntax)).collect::<io::Result<Vec<Command>>>()?
     };
 
+    // keep reusing these buffers
     let mut buf = String::new();
+    // swap the roles of these buffers as we make subsequent replacements
+    let mut read = String::new();
+    let mut write = String::new();
     while stdin.read_line(&mut buf)? != 0 {
-        print!("{}", regex.replace(&buf, &replacement));
+        read.clear();
+        read.push_str(&buf);
+        for c in &commands {
+            match c {
+                Command::S(regex, replacement) => {
+                    // TODO greedy match
+                    let changed = regex::replace(regex, &read, &mut write, replacement);
+                    if changed {
+                        let tmp = read;
+                        read = write;
+                        write = tmp;
+                    }
+                }
+            }
+        }
+        print!("{}", read);
         buf.clear();
     }
     Ok(())
