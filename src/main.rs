@@ -1,11 +1,9 @@
-// use crate::parser::*;
-
 use clap::Parser;
 use std::io;
 
 mod commands;
 mod regex;
-use commands::Command;
+use commands::{Command, parse_command};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -19,44 +17,6 @@ struct Cli {
     extended_syntax: bool,
     #[arg(short='R', help="rust regexp syntax")]
     rust_syntax: bool,
-}
-
-fn split_on(s: &str, sep: &char) -> Vec<String> {
-    let mut ret = Vec::new();
-    let mut backslash = false;
-    let mut begin = 0;
-    for (i, c) in s.char_indices() {
-        if c == *sep && !backslash {
-            // let mut part = String::new();
-            // part.push_str(&s[begin..i]);
-            // ret.push(part);
-            ret.push(s[begin..i].to_string());
-            begin = i + 1;
-        }
-        backslash = c == '\\';
-    }
-    ret
-}
-
-// TODO better error handling
-fn parse_command(cmd: &str, syntax: regex::Syntax) -> Result<Command, std::io::Error> {
-    let mut chars = cmd.chars();
-    match chars.next().unwrap() {
-        's' => {
-            let sep = chars.next().unwrap();
-            let mut words = split_on(&cmd[2..], &sep);
-            if words.len() == 2 {
-                regex::parse(syntax, &words[0])
-                    .map(|regex| Command::S(regex, words.pop().unwrap()))
-            } else {
-                Err(io::Error::new(io::ErrorKind::InvalidInput, format!(
-                    "unexpected number of command arguments: {}",
-                    words.len()
-                )))
-            }
-        }
-        _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "unknown command letter".to_string())),
-    }
 }
 
 fn main() -> io::Result<()> {
