@@ -1,9 +1,14 @@
 use ::regex::Regex;
 use crate::regex;
 use std::io;
+
 use nom;
+use nom::{Err, IResult};
 use nom::branch::alt;
-use nom::{IResult};
+use nom::character::complete::{char, none_of};
+use nom::combinator::opt;
+use nom::error::{ Error, ErrorKind};
+use nom::multi::many0;
 
 pub enum Address {
     LineNumber(u64),
@@ -22,7 +27,7 @@ pub struct Command {
 }
 
 // TODO better error handling
-pub fn parse_function(cmd: &str, syntax: regex::Syntax) -> Result<Function, std::io::Error> {
+pub fn parse_function(cmd: &str, syntax: &regex::Syntax) -> Result<Function, std::io::Error> {
     let mut chars = cmd.chars();
     match chars.next().unwrap() {
         's' => {
@@ -75,5 +80,46 @@ fn line_number_addr(s: &str) -> IResult<&str, Address> {
     Ok((s, Address::LineNumber(n)))
 }
 
-fn context_addr(syntax: &regex::Syntax) -> fn(&str) -> Result<(&str), Address> {
+fn context_addr(syntax: &regex::Syntax) -> impl Fn(&str) -> IResult<&str, Address> {
+
+    let syntax_ = syntax.clone();
+    move |s: &str| {
+        // TODO other start chars
+        let (s, _) = char('/')(s)?;
+        let (s, addr) = many0(none_of("/"))(s)?;
+        let (s, _) = char('/')(s)?;
+        // TODO \/ or [/] do not end the regex
+        let r_regex = regex::parse(&syntax_, String::from_iter(addr).as_ref());
+        let regex = match r_regex {
+            Err(_) => {
+                Err(Err::Failure(Error::new(s, ErrorKind::Fail)))
+            },
+            Ok(regex) => Ok(regex)
+        }?;
+        Ok((s, Address::Context(regex)))
+    }
+}
+
+pub fn parse_command<'a>(s: &'a str, syntax: &regex::Syntax) -> IResult<&'a str, Command> {
+    let (s, start) = opt(|s|parse_address(s, syntax))(s)?;
+    let (s, end) = match &start {
+        None => Ok((s, None)),
+        Some(_) => {
+            let (s, maybe) = opt(char(','))(s)?;
+            match maybe {
+                None => Ok((s, None)),
+                Some(_) => {
+                    let (s, addr) = parse_address(s, syntax)?;
+                    Ok((s, Some(addr)))
+                } 
+            }
+        }
+    }?;
+    let (s, function) = parse_function(s, syntax)?;
+    OK((s, Command {
+        start:  start,
+        end: end,
+        function: function
+    }))
+
 }
