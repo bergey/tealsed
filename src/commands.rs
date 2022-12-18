@@ -3,10 +3,10 @@ use crate::regex;
 use std::io;
 
 use nom;
-use nom::{Err, IResult};
+use nom::{Err, Finish, IResult};
 use nom::branch::alt;
-use nom::character::complete::{char, none_of};
-use nom::combinator::opt;
+use nom::character::complete::{anychar, char, none_of};
+use nom::combinator::{eof, fail, opt};
 use nom::error::{ Error, ErrorKind};
 use nom::multi::many0;
 
@@ -21,29 +21,36 @@ pub enum Function {
 }
 
 pub struct Command {
-    start: Option<Address>,
-    end: Option<Address>, // should not be Some if start is None
-    function: Function,
+    pub start: Option<Address>,
+    pub end: Option<Address>, // should not be Some if start is None
+    pub function: Function,
 }
 
-// TODO better error handling
-pub fn parse_function(cmd: &str, syntax: &regex::Syntax) -> Result<Function, std::io::Error> {
-    let mut chars = cmd.chars();
-    match chars.next().unwrap() {
+type Progress<'a, T> = IResult<&'a str, T>;
+
+fn take_until<'a>(sep: char, s: &'a str) -> Progress<&'a str> {
+    let o_split = s.split_once(sep);
+    match o_split {
+        None => Err(Err::Error(Error::new(s, ErrorKind::SeparatedNonEmptyList))),
+        Some((before, after)) => Ok((after, before))
+    }
+}
+
+pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
+    let (s, function) = anychar(cmd)?;
+    match function {
         's' => {
-            let sep = chars.next().unwrap();
-            let mut words = split_on(&cmd[2..], &sep);
-            if words.len() == 2 {
-                regex::parse(syntax, &words[0])
-                    .map(|regex| Function::S(regex, words.pop().unwrap()))
-            } else {
-                Err(io::Error::new(io::ErrorKind::InvalidInput, format!(
-                    "unexpected number of function arguments: {}",
-                    words.len()
-                )))
-            }
+            let (s, sep) = anychar(s)?;
+            let (s, pattern) = take_until(sep, s)?;
+            let (unused, ast) = regex::posix::parse(pattern)?;
+            let _ = eof(unused)?;
+            let regex = Regex::new(&format!("{}", ast)).unwrap();
+            let (s, _) = char(sep)(s)?;
+            let (s, replacement) = take_until(sep, s)?;
+            let (s, _) = char(sep)(s)?;
+            Ok((s, Function::S(regex, String::from(replacement))))
         }
-        _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "unknown function letter".to_string())),
+        _ => fail(cmd)
     }
 }
 
@@ -71,8 +78,8 @@ pub fn match_address(addr: &Address, text: &str, line_num: u64) -> bool {
     }
 }
 
-pub fn parse_address<'a>(s: &'a str, syntax: &regex::Syntax) -> IResult<&'a str, Address> {
-    alt((line_number_addr, context_addr(syntax)))(s)
+pub fn parse_address<'a>(s: &'a str) -> IResult<&'a str, Address> {
+    alt((line_number_addr, context_addr))(s)
 }
 
 fn line_number_addr(s: &str) -> IResult<&str, Address> {
@@ -80,28 +87,24 @@ fn line_number_addr(s: &str) -> IResult<&str, Address> {
     Ok((s, Address::LineNumber(n)))
 }
 
-fn context_addr(syntax: &regex::Syntax) -> impl Fn(&str) -> IResult<&str, Address> {
-
-    let syntax_ = syntax.clone();
-    move |s: &str| {
-        // TODO other start chars
-        let (s, _) = char('/')(s)?;
-        let (s, addr) = many0(none_of("/"))(s)?;
-        let (s, _) = char('/')(s)?;
-        // TODO \/ or [/] do not end the regex
-        let r_regex = regex::parse(&syntax_, String::from_iter(addr).as_ref());
-        let regex = match r_regex {
-            Err(_) => {
-                Err(Err::Failure(Error::new(s, ErrorKind::Fail)))
-            },
-            Ok(regex) => Ok(regex)
-        }?;
-        Ok((s, Address::Context(regex)))
-    }
+fn context_addr<'a>(s: &'a str) -> IResult<&'a str, Address> {
+    // TODO other start chars
+    let (s, _) = char('/')(s)?;
+    let (s, addr) = many0(none_of("/"))(s)?;
+    let (s, _) = char('/')(s)?;
+    // TODO \/ or [/] do not end the regex
+    let r_regex = regex::parse(String::from_iter(addr).as_ref());
+    let regex = match r_regex {
+        Err(_) => {
+            Err(Err::Failure(Error::new(s, ErrorKind::Fail)))
+        },
+        Ok(regex) => Ok(regex)
+    }?;
+    Ok((s, Address::Context(regex)))
 }
 
-pub fn parse_command<'a>(s: &'a str, syntax: &regex::Syntax) -> IResult<&'a str, Command> {
-    let (s, start) = opt(|s|parse_address(s, syntax))(s)?;
+pub fn parse_command<'a>(s: &'a str) -> IResult<&'a str, Command> {
+    let (s, start) = opt(|s|parse_address(s))(s)?;
     let (s, end) = match &start {
         None => Ok((s, None)),
         Some(_) => {
@@ -109,17 +112,23 @@ pub fn parse_command<'a>(s: &'a str, syntax: &regex::Syntax) -> IResult<&'a str,
             match maybe {
                 None => Ok((s, None)),
                 Some(_) => {
-                    let (s, addr) = parse_address(s, syntax)?;
+                    let (s, addr) = parse_address(s)?;
                     Ok((s, Some(addr)))
                 } 
             }
         }
     }?;
-    let (s, function) = parse_function(s, syntax)?;
-    OK((s, Command {
+    let (s, function) = parse_function(s)?;
+    Ok((s, Command {
         start:  start,
         end: end,
         function: function
     }))
+}
 
+pub fn parse_command_finish<'a>(s: &'a str) -> io::Result<Command> {
+    match parse_command(s).finish() {
+        Ok((_, cmd)) => Ok(cmd),
+        Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("{}", e)))
+    }
 }

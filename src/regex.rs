@@ -5,23 +5,10 @@ pub mod posix;
 use ::regex::{Regex, Replacer};
 use std::io::{Error, ErrorKind};
 
-#[derive(Debug, Copy, Clone)]
-pub enum Syntax {
-    Rust,
-    PosixExtended
-}
-
-pub fn parse(syntax: &Syntax, s: &str) -> Result<Regex, Error> {
-    match syntax {
-        Syntax::PosixExtended => {
-            let ast = posix::parse_complete(s).map_err(|e| Error::new(ErrorKind::InvalidInput, e.to_string()))?;
-            Regex::new(&format!("{}", ast))
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
-
-        }
-        Syntax::Rust => Regex::new(s)
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
-    }
+pub fn parse(s: &str) -> Result<Regex, Error> {
+    let ast = posix::parse_complete(s).map_err(|e| Error::new(ErrorKind::InvalidInput, e.to_string()))?;
+    Regex::new(&format!("{}", ast)) // TODO panic on err
+        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
 }
 
 // return true if any replacement was made
