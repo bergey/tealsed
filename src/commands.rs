@@ -10,10 +10,11 @@ use nom::combinator::{eof, fail, opt};
 use nom::error::{ Error, ErrorKind};
 use nom::multi::many0;
 
+#[derive(Debug)]
 pub enum Address {
     LineNumber(u64),
     // LastLine, // TODO how do we detect last line?  From stdin, in particular
-    Context(Regex),
+    Context(Regex), // TODO case-insensitive
 }
 
 pub enum Function {
@@ -45,9 +46,7 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
             let (unused, ast) = regex::posix::parse(pattern)?;
             let _ = eof(unused)?;
             let regex = Regex::new(&format!("{}", ast)).unwrap();
-            let (s, _) = char(sep)(s)?;
             let (s, replacement) = take_until(sep, s)?;
-            let (s, _) = char(sep)(s)?;
             Ok((s, Function::S(regex, String::from(replacement))))
         }
         _ => fail(cmd)
@@ -71,6 +70,8 @@ fn split_on(s: &str, sep: &char) -> Vec<String> {
     ret
 }
 
+// handles only a single address
+// caller must maintain state between calls, decide whether to pass start or end pattern
 pub fn match_address(addr: &Address, text: &str, line_num: u64) -> bool {
     match addr {
         Address::LineNumber(l) => *l == line_num,

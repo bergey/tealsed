@@ -3,7 +3,7 @@ use std::io;
 
 mod commands;
 mod regex;
-use commands::{Command, Function, parse_command_finish};
+use commands::{Command, Function, match_address, parse_command_finish};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -35,22 +35,45 @@ fn main() -> io::Result<()> {
 
     // keep reusing these buffers
     let mut buf = String::new();
+    let mut line_number = 0;
     // swap the roles of these buffers as we make subsequent replacements
     let mut read = String::new();
     let mut write = String::new();
+    let mut in_matching_range = Vec::with_capacity(commands.len());
+    for _ in &commands {
+        in_matching_range.push(false);
+    }
     while stdin.read_line(&mut buf)? != 0 {
+        line_number += 1;
         read.clear();
         read.push_str(&buf);
-        for c in &commands {
-            // TODO handle addresses
-            match &c.function {
-                Function::S(regex, replacement) => {
-                    // TODO greedy match
-                    let changed = regex::replace(&regex, &read, &mut write, replacement);
-                    if changed {
-                        let tmp = read;
-                        read = write;
-                        write = tmp;
+        for (cmd_index, cmd) in commands.iter().enumerate() {
+            let should_apply = match (&cmd.start, &cmd.end) {
+                (None, None) => true,
+                (Some(addr), None) => match_address(&addr, &read, line_number),
+                (Some(start), Some(end)) =>
+                    if in_matching_range[cmd_index] {
+                        let stop = match_address(&end, &read, line_number);
+                        in_matching_range[cmd_index] = !stop;
+                        true
+                    } else {
+                        let start = match_address(&start, &read, line_number);
+                        in_matching_range[cmd_index] = !start;
+                        start
+                    },
+                (None, Some(end)) => panic!("end address has no matching start {:?}", end)
+            };
+            if should_apply {
+                match &cmd.function {
+                    Function::S(regex, replacement) => {
+                        // TODO greedy match
+                        let changed = regex::replace(&regex, &read, &mut write, replacement);
+                        if changed {
+                            let tmp = read;
+                            read = write;
+                            write = tmp;
+                            write.clear();
+                        }
                     }
                 }
             }
