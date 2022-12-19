@@ -20,16 +20,22 @@ struct Cli {
 }
 
 fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Result<()> where R: io::BufRead {
-    // keep reusing these buffers
+    // input buffer, reused for each line
     let mut buf = String::new();
     let mut line_number = 0;
+
     // swap the roles of these buffers as we make subsequent replacements
     let mut read = String::new();
     let mut write = String::new();
+
+    let mut hold = String::new();
+
+    // for each command, a boolean to track whether we are within its address range
     let mut in_matching_range = Vec::with_capacity(commands.len());
     for _ in commands {
         in_matching_range.push(false);
     }
+
     while input.read_line(&mut buf)? != 0 {
         line_number += 1;
         read.clear();
@@ -66,6 +72,14 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                         } else {
                             read.clear();
                         }
+                    },
+                    Function::H => {
+                        hold.clear();
+                        hold.push_str(&read);
+                    },
+                    Function::HH => {
+                        hold.push_str("\n");
+                        hold.push_str(&read);
                     }
                     Function::P => print!("{}", read),
                     Function::S(regex, replacement) => {
