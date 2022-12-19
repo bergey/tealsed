@@ -10,7 +10,7 @@ use commands::{Command, Function, match_address, parse_command_finish};
 struct Cli {
     /// The pattern to find
     #[command()]
-    command_or_file: String, // s/regex/replacement/
+    command_or_files: Vec<String>, // s/regex/replacement/
     #[arg(short='e')]
     commands: Vec<String>,
     #[arg(short='E', help="posix extended regexp syntax (ignored)")]
@@ -27,13 +27,18 @@ fn main() -> io::Result<()> {
 
     let commands: Vec<Command> =
         if args.commands.len() == 0 {
-            parse_command_finish(&args.command_or_file)
-                .map(|cmd| Vec::from([cmd]))?
+            match args.command_or_files.first() {
+                Some(arg) => parse_command_finish(&arg)
+                    .map(|cmd| Vec::from([cmd]))?,
+                None => Vec::new()
+            }
         } else {
             args.commands.iter()
                 .map(|cmd| parse_command_finish(&cmd))
                 .collect::<io::Result<Vec<Command>>>()?
         };
+
+    // TODO files
 
     // keep reusing these buffers
     let mut buf = String::new();
@@ -67,7 +72,10 @@ fn main() -> io::Result<()> {
             };
             if should_apply {
                 match &cmd.function {
-                    Function::D => read.clear(),
+                    Function::D => {
+                        read.clear();
+                        break;
+                    },
                     Function::P => print!("{}", read),
                     Function::S(regex, replacement) => {
                         // TODO greedy match
