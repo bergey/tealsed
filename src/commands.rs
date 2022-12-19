@@ -19,6 +19,7 @@ pub enum Address {
 
 pub enum Function {
     D,
+    DD,
     P,
     S(Regex, String),
 }
@@ -43,6 +44,7 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
     match function {
         'd' => Ok((s, Function::D)),
+        'D' => Ok((s, Function::DD)),
         'p' => Ok((s, Function::P)),
         's' => {
             let (s, sep) = anychar(s)?;

@@ -56,6 +56,17 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                         read.clear();
                         break;
                     },
+                    Function::DD => {
+                        if let Some(ix) = read.find('\n') {
+                            write.push_str(&read[ix+1..]);
+                            let tmp = read;
+                            read = write;
+                            write = tmp;
+                            write.clear();
+                        } else {
+                            read.clear();
+                        }
+                    }
                     Function::P => print!("{}", read),
                     Function::S(regex, replacement) => {
                         // TODO greedy match
