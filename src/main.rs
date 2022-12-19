@@ -74,6 +74,9 @@ fn main() -> io::Result<()> {
                             write = tmp;
                             write.clear();
                         }
+                    },
+                    Function::D => {
+                        read.clear();
                     }
                 }
             }

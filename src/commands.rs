@@ -18,6 +18,7 @@ pub enum Address {
 }
 
 pub enum Function {
+    D,
     S(Regex, String),
 }
 
@@ -49,6 +50,7 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
             let (s, replacement) = take_until(sep, s)?;
             Ok((s, Function::S(regex, String::from(replacement))))
         }
+        'd' => Ok((s, Function::D)),
         _ => fail(cmd)
     }
 }
