@@ -17,14 +17,16 @@ pub enum Address {
     Context(Regex), // TODO case-insensitive
 }
 
+// single letter for uppercase function names
+// F followed by a letter for lowercase function names
 pub enum Function {
-    D, DD,
-    G, GG,
-    H, HH,
-    I(String),
-    P,
-    S(Regex, String),
-    X
+    D, Fd,
+    G, Fg,
+    H, Fh,
+    Fi(String),
+    Fp,
+    Fs(Regex, String),
+    Fx
 }
 
 pub struct Command {
@@ -47,14 +49,14 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
     use Function::{*};
     match function {
-        'd' => Ok((s, D)),
-        'D' => Ok((s, DD)),
-        'g' => Ok((s, G)),
-        'G' => Ok((s, GG)),
-        'h' => Ok((s, H)),
-        'H' => Ok((s, HH)),
-        'i' => Ok(("", I(s.to_string()))),
-        'p' => Ok((s, P)),
+        'd' => Ok((s, Fd)),
+        'D' => Ok((s, D)),
+        'g' => Ok((s, Fg)),
+        'G' => Ok((s, G)),
+        'h' => Ok((s, Fh)),
+        'H' => Ok((s, H)),
+        'i' => Ok(("", Fi(s.to_string()))),
+        'p' => Ok((s, Fp)),
         's' => {
             let (s, sep) = anychar(s)?;
             let (s, pattern) = take_until(sep, s)?;
@@ -62,9 +64,9 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
             let _ = eof(unused)?;
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
-            Ok((s, S(regex, String::from(replacement))))
+            Ok((s, Fs(regex, String::from(replacement))))
         },
-        'x' => Ok((s, X)),
+        'x' => Ok((s, Fx)),
         _ => fail(cmd)
     }
 }

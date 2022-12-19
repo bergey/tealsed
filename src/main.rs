@@ -59,11 +59,11 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
             if should_apply {
                 use Function::{*};
                 match &cmd.function {
-                    D => {
+                    Fd => {
                         read.clear();
                         break;
                     },
-                    DD => {
+                    D => {
                         if let Some(ix) = read.find('\n') {
                             write.push_str(&read[ix+1..]);
                             let tmp = read;
@@ -74,25 +74,25 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                             read.clear();
                         }
                     },
-                    G => {
+                    Fg => {
                         read.clear();
                         read.push_str(&hold);
                     },
-                    GG => {
+                    G => {
                         read.push_str("\n");
                         read.push_str(&hold);
                     },
-                    H => {
+                    Fh => {
                         hold.clear();
                         hold.push_str(&read);
                     },
-                    HH => {
+                    H => {
                         hold.push_str("\n");
                         hold.push_str(&read);
                     },
-                    I(text) => print!("{}", text),
-                    P => print!("{}", read),
-                    S(regex, replacement) => {
+                    Fi(text) => print!("{}", text),
+                    Fp => print!("{}", read),
+                    Fs(regex, replacement) => {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
                         if changed {
@@ -102,7 +102,7 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                             write.clear();
                         }
                     },
-                    X => {
+                    Fx => {
                         let tmp = read;
                         read = hold;
                         hold = tmp;
