@@ -15,6 +15,8 @@ struct Cli {
     commands: Vec<String>,
     #[arg(short='E', help="posix extended regexp syntax (ignored)")]
     extended_syntax: bool,
+    #[arg(short='n', help="do not print every line")]
+    no_print: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -65,6 +67,8 @@ fn main() -> io::Result<()> {
             };
             if should_apply {
                 match &cmd.function {
+                    Function::D => read.clear(),
+                    Function::P => print!("{}", read),
                     Function::S(regex, replacement) => {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
@@ -75,13 +79,10 @@ fn main() -> io::Result<()> {
                             write.clear();
                         }
                     },
-                    Function::D => {
-                        read.clear();
-                    }
                 }
             }
         }
-        print!("{}", read);
+        if !args.no_print { print!("{}", read); }
         buf.clear();
     }
     Ok(())
