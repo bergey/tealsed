@@ -90,6 +90,7 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                         hold.push_str("\n");
                         hold.push_str(&read);
                     },
+                    I(text) => print!("{}", text),
                     P => print!("{}", read),
                     S(regex, replacement) => {
                         // TODO greedy match

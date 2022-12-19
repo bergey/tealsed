@@ -21,6 +21,7 @@ pub enum Function {
     D, DD,
     G, GG,
     H, HH,
+    I(String),
     P,
     S(Regex, String),
     X
@@ -51,6 +52,7 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
         'G' => Ok((s, Function::GG)),
         'h' => Ok((s, Function::H)),
         'H' => Ok((s, Function::HH)),
+        'i' => Ok(("", Function::I(s.to_string()))),
         'p' => Ok((s, Function::P)),
         's' => {
             let (s, sep) = anychar(s)?;
