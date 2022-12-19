@@ -45,15 +45,16 @@ fn take_until<'a>(sep: char, s: &'a str) -> Progress<&'a str> {
 
 pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
+    use Function::{*};
     match function {
-        'd' => Ok((s, Function::D)),
-        'D' => Ok((s, Function::DD)),
-        'g' => Ok((s, Function::G)),
-        'G' => Ok((s, Function::GG)),
-        'h' => Ok((s, Function::H)),
-        'H' => Ok((s, Function::HH)),
-        'i' => Ok(("", Function::I(s.to_string()))),
-        'p' => Ok((s, Function::P)),
+        'd' => Ok((s, D)),
+        'D' => Ok((s, DD)),
+        'g' => Ok((s, G)),
+        'G' => Ok((s, GG)),
+        'h' => Ok((s, H)),
+        'H' => Ok((s, HH)),
+        'i' => Ok(("", I(s.to_string()))),
+        'p' => Ok((s, P)),
         's' => {
             let (s, sep) = anychar(s)?;
             let (s, pattern) = take_until(sep, s)?;
@@ -61,9 +62,9 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
             let _ = eof(unused)?;
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
-            Ok((s, Function::S(regex, String::from(replacement))))
+            Ok((s, S(regex, String::from(replacement))))
         },
-        'x' => Ok((s, Function::X)),
+        'x' => Ok((s, X)),
         _ => fail(cmd)
     }
 }
