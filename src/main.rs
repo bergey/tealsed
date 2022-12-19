@@ -73,6 +73,14 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                             read.clear();
                         }
                     },
+                    Function::G => {
+                        read.clear();
+                        read.push_str(&hold);
+                    },
+                    Function::GG => {
+                        read.push_str("\n");
+                        read.push_str(&hold);
+                    },
                     Function::H => {
                         hold.clear();
                         hold.push_str(&read);
@@ -80,7 +88,7 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                     Function::HH => {
                         hold.push_str("\n");
                         hold.push_str(&read);
-                    }
+                    },
                     Function::P => print!("{}", read),
                     Function::S(regex, replacement) => {
                         // TODO greedy match
@@ -92,6 +100,11 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                             write.clear();
                         }
                     },
+                    Function::X => {
+                        let tmp = read;
+                        read = hold;
+                        hold = tmp;
+                    }
                 }
             }
         }

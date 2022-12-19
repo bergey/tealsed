@@ -19,9 +19,11 @@ pub enum Address {
 
 pub enum Function {
     D, DD,
+    G, GG,
     H, HH,
     P,
     S(Regex, String),
+    X
 }
 
 pub struct Command {
@@ -45,6 +47,8 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
     match function {
         'd' => Ok((s, Function::D)),
         'D' => Ok((s, Function::DD)),
+        'g' => Ok((s, Function::G)),
+        'G' => Ok((s, Function::GG)),
         'h' => Ok((s, Function::H)),
         'H' => Ok((s, Function::HH)),
         'p' => Ok((s, Function::P)),
@@ -56,7 +60,8 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
             Ok((s, Function::S(regex, String::from(replacement))))
-        }
+        },
+        'x' => Ok((s, Function::X)),
         _ => fail(cmd)
     }
 }
