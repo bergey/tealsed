@@ -57,12 +57,13 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                 (None, Some(end)) => panic!("end address has no matching start {:?}", end)
             };
             if should_apply {
+                use Function::{*};
                 match &cmd.function {
-                    Function::D => {
+                    D => {
                         read.clear();
                         break;
                     },
-                    Function::DD => {
+                    DD => {
                         if let Some(ix) = read.find('\n') {
                             write.push_str(&read[ix+1..]);
                             let tmp = read;
@@ -73,24 +74,24 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                             read.clear();
                         }
                     },
-                    Function::G => {
+                    G => {
                         read.clear();
                         read.push_str(&hold);
                     },
-                    Function::GG => {
+                    GG => {
                         read.push_str("\n");
                         read.push_str(&hold);
                     },
-                    Function::H => {
+                    H => {
                         hold.clear();
                         hold.push_str(&read);
                     },
-                    Function::HH => {
+                    HH => {
                         hold.push_str("\n");
                         hold.push_str(&read);
                     },
-                    Function::P => print!("{}", read),
-                    Function::S(regex, replacement) => {
+                    P => print!("{}", read),
+                    S(regex, replacement) => {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
                         if changed {
@@ -100,7 +101,7 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                             write.clear();
                         }
                     },
-                    Function::X => {
+                    X => {
                         let tmp = read;
                         read = hold;
                         hold = tmp;
