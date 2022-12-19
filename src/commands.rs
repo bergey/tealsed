@@ -60,7 +60,7 @@ pub fn parse_function<'a>(cmd: &'a str) -> Progress<Function> {
         's' => {
             let (s, sep) = anychar(s)?;
             let (s, pattern) = take_until(sep, s)?;
-            let (unused, ast) = regex::posix::parse(pattern)?;
+            let (unused, ast) = regex::parser::parse(pattern)?;
             let _ = eof(unused)?;
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
