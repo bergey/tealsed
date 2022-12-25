@@ -25,47 +25,49 @@ pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
 
 pub type Progress<'a> = IResult<Input<'a>, Ast>;
 
-// probably regexen are short enough that position isn't that important
-// could pass Position around, make it part of Input, but need to implement ParseError trait
-// will also need capture index at some point
-const ZERO_POSITION: Position = Position {
-    offset: 0,
-    line: 0,
-    column: 0,
-};
-
-const ZERO_SPAN: Span = Span {
-    start: ZERO_POSITION,
-    end: ZERO_POSITION,
-};
+// Construct a regex::ast Position from a nom_locate LocatedSpan
+fn position(s: Input) -> Position {
+    Position {
+        offset: s.location_offset(),
+        line: usize::try_from(s.location_line()).unwrap(),
+        column: s.get_column(),
+    }
+}
 
 // only valid in ()?
 fn empty(s: Input<'_>) -> Progress {
-    Ok((s, Ast::Empty(ZERO_SPAN.clone())))
+    let pos = position(s);
+    Ok((s, Ast::Empty(Span{start: pos, end: pos.clone()})))
 }
 
 fn dot(s: Input<'_>) -> Progress {
+    let start = position(s);
     let (s, _) = char('.')(s)?;
-    Ok((s, Ast::Dot(ZERO_SPAN.clone())))
+    let end = position(s);
+    Ok((s, Ast::Dot(Span{start: start, end: end})))
 }
 
 // re_format says these have special meaning if not escaped with \
 const SPECIAL_CHARS : &str = "^.[$()|*+?{\\";
 
 fn literal(s: Input<'_>) -> Progress {
+    let start = position(s);
     let (s, lit) = none_of(SPECIAL_CHARS)(s)?;
+    let end = position(s);
     Ok((s, Ast::Literal(Literal{
-        span: ZERO_SPAN.clone(),
+        span: Span{start: start, end: end},
         kind: LiteralKind::Verbatim,
         c: lit
     })))
 }
 
 fn escaped_literal(s: Input<'_>) -> Progress {
+    let start = position(s);
     let (s, _) = char('\\')(s)?;
     let (s, c) = one_of(SPECIAL_CHARS)(s)?;
+    let end = position(s);
     Ok((s, Ast::Literal(Literal{
-        span: ZERO_SPAN.clone(),
+        span: Span{start: start, end: end},
         kind: LiteralKind::Punctuation,
         c: c
     })))
@@ -76,7 +78,8 @@ fn atom(s: Input<'_>) -> Progress {
     alt((literal, escaped_literal, dot))(s)
 }
 
-fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionKind> {
+fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionOp> {
+    let start = position(s);
     let (s, c) = one_of("*+?")(s)?;
     let quantifier = match c {
         '*' => RepetitionKind::ZeroOrMore,
@@ -85,10 +88,15 @@ fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionKind> {
         _ => panic!("one_of returned an unexpected character")
 
     };
-    Ok((s, quantifier))
+    let end = position(s);
+    Ok((s, RepetitionOp {
+        span: Span{start: start, end: end},
+        kind: quantifier
+    } ))
 }
 
-fn bound(s: Input<'_>) -> IResult<Input, RepetitionKind> {
+fn bound(s: Input<'_>) -> IResult<Input, RepetitionOp> {
+    let start = position(s);
     let (s, _) = char('{')(s)?;
     let (s, min) = u32(s)?;
     let (s, o_comma) = opt(char(','))(s)?;
@@ -104,21 +112,24 @@ fn bound(s: Input<'_>) -> IResult<Input, RepetitionKind> {
         }
     }?;
     let (s, _) = char('}')(s)?;
-    Ok((s, bound))
+    let end = position(s);
+    Ok((s, RepetitionOp {
+        span: Span{start: start, end: end},
+        kind: bound
+    } ))
 }
 
 fn quantified_piece(s: Input<'_>) -> Progress {
+    let start = position(s);
     let (s, atom) = atom(s)?;
     let (s, o_quantifier) = opt(alt((char_quantifier, bound)))(s)?;
+    let end = position(s);
     match o_quantifier {
         None => Ok((s, atom)),
         Some(quantifier) => {
             Ok((s, Ast::Repetition(Repetition {
-                span: ZERO_SPAN,
-                op: RepetitionOp {
-                    span: ZERO_SPAN,
-                    kind: quantifier
-                },
+                span: Span{start: start, end: end},
+                op: quantifier,
                 greedy: true,
                 ast: Box::new(atom)
             })))
@@ -127,12 +138,14 @@ fn quantified_piece(s: Input<'_>) -> Progress {
 }
 
 fn branch(s: Input<'_>) -> Progress {
+    let start = position(s);
     let (s, atoms) = many1(quantified_piece)(s)?;
+    let end = position(s);
     if atoms.len() == 1 { // TODO make this less clunky or define a helper
         Ok((s, atoms.into_iter().nth(0).unwrap()))
     } else {
         Ok((s, Ast::Concat(Concat{
-            span: ZERO_SPAN,
+            span: Span{start: start, end: end},
             asts: atoms
         })))
     }
