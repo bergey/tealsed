@@ -4,6 +4,7 @@ use std::io;
 mod commands;
 mod regex;
 use commands::{Command, Function, match_address, parse_command_finish};
+use crate::regex::parser::new_regex_input;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -123,13 +124,13 @@ fn main() -> io::Result<()> {
     let commands: Vec<Command> =
         if args.commands.len() == 0 {
             match args.command_or_files.first() {
-                Some(arg) => parse_command_finish(&arg)
+                Some(arg) => parse_command_finish(new_regex_input(&arg))
                     .map(|cmd| Vec::from([cmd]))?,
                 None => Vec::new()
             }
         } else {
             args.commands.iter()
-                .map(|cmd| parse_command_finish(&cmd))
+                .map(|cmd| parse_command_finish(new_regex_input(&cmd)))
                 .collect::<io::Result<Vec<Command>>>()?
         };
 
