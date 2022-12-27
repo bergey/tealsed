@@ -1,5 +1,4 @@
 extern crate nom;
-
 use nom::character::complete::{char, none_of, one_of, u32};
 use nom::branch::alt;
 use nom::error::{ Error, ErrorKind};
@@ -9,7 +8,7 @@ use nom::{
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Ast, Concat, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Ast, Concat, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtraState {
@@ -85,9 +84,24 @@ fn escaped_literal(s: Input<'_>) -> Progress {
     })))
 }
 
+fn group(s: Input) -> Progress {
+    let start = position(s);
+    let (s, _) = char( '(' )(s)?;
+    // TODO named & non-capturing
+    let (s, ast) = branch(s)?;
+    let (mut s, _) = char( ')' )(s)?;
+    let end = position(s);
+    s.extra.last_regex += 1;
+    Ok((s, Ast::Group( Group {
+        span: Span{ start: start, end: end},
+        kind: GroupKind::CaptureIndex(s.extra.last_regex),
+        ast: Box::new(ast),
+    })))
+}
+
 fn atom(s: Input<'_>) -> Progress {
     // TODO () ^ $ \^.[$()|*+?{\ \
-    alt((literal, escaped_literal, dot))(s)
+    alt((group, literal, escaped_literal, dot))(s)
 }
 
 fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionOp> {
@@ -239,6 +253,11 @@ pub mod tests {
     #[test]
     fn range() {
         match_modern_syntax("x{2,5}")
+    }
+
+    #[test]
+    fn group() {
+        match_modern_syntax("(a*)")
     }
     
 }

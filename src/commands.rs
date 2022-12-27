@@ -73,6 +73,22 @@ fn take_until<'a>(sep: char, s: Input) -> Progress<String> {
     Ok((s, vec.into_iter().collect()))
 }
 
+// convert sed \1 syntax to regex crate $1 and escape $
+pub fn clean_replacement(mut s: String) -> String {
+    let mut dest = String::new();
+
+    // TODO static regexen
+    let dollar = Regex::new(r"\$").unwrap();
+    let changed = regex::replace_all(&dollar, &s, &mut dest, "$$$$");
+    if changed {std::mem::swap(&mut s, &mut dest)}
+
+    let backslash_digits = Regex::new(r"\\([0-9]+)").unwrap();
+    let changed = regex::replace_all(&backslash_digits, &s, &mut dest, r"$${$1}");
+    if changed {std::mem::swap(&mut s, &mut dest)}
+
+    s
+}
+
 pub fn parse_function<'a>(cmd: Input<'a>) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
     use Function::{*};
@@ -92,7 +108,7 @@ pub fn parse_function<'a>(cmd: Input<'a>) -> Progress<Function> {
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
             let (s, _) = char(sep)(s)?;
-            Ok((s, Fs(regex, replacement)))
+            Ok((s, Fs(regex, clean_replacement(replacement))))
         },
         'x' => Ok((s, Fx)),
         _ => fail(cmd)
@@ -215,5 +231,20 @@ pub mod tests {
     #[test]
     fn addr_comma() {
         address_equivalent("\\,foo,", &Context(dummy_regex()))
+    }
+
+    #[test]
+    fn clean_noop() {
+        assert_eq!(clean_replacement("foo".to_string()), "foo")
+    }
+
+    #[test]
+    fn clean_ref() {
+        assert_eq!(clean_replacement(r"foo\1".to_string()), "foo${1}")
+    }
+
+    #[test]
+    fn clean_dollar() {
+        assert_eq!(clean_replacement("$foo".to_string()), "$$foo")
     }
 }
