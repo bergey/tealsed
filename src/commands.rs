@@ -5,11 +5,10 @@ use crate::regex::equivalent::Equivalent;
 use std::io;
 
 use nom;
-use nom::{Err, Finish, IResult};
+use nom::{Finish, IResult};
 use nom::branch::alt;
 use nom::character::complete::{anychar, char, none_of};
 use nom::combinator::{fail, opt, rest};
-use nom::error::{ Error, ErrorKind};
 use nom::multi::many0;
 
 #[derive(Debug)]
@@ -17,6 +16,17 @@ pub enum Address {
     LineNumber(u64),
     // LastLine, // TODO how do we detect last line?  From stdin, in particular
     Context(Regex), // TODO case-insensitive
+}
+
+impl Equivalent for Address {
+    fn equivalent(&self, other: &Address) -> bool {
+        use Address::*;
+        match (self, other) {
+            (LineNumber(n), LineNumber(m)) => n == m,
+            (Context(_), Context(_)) => true,
+            _ => false
+        }
+    }
 }
 
 // single letter for uppercase function names
@@ -124,19 +134,16 @@ fn line_number_addr(s: Input) -> Progress<Address> {
     Ok((s, Address::LineNumber(n)))
 }
 
+fn backslash_char(s: Input) -> Progress<char> {
+    let (s, _) = char('\\')(s)?;
+    anychar(s)
+}
+
 fn context_addr<'a>(s: Input) -> Progress<Address> {
-    // TODO other start chars
-    let (s, _) = char('/')(s)?;
-    let (s, addr) = many0(none_of("/"))(s)?;
-    let (s, _) = char('/')(s)?;
-    // TODO \/ or [/] do not end the regex
-    let r_regex = regex::parse('/', String::from_iter(addr).as_ref());
-    let regex = match r_regex {
-        Err(_) => {
-            Err(Err::Failure(Error::new(s, ErrorKind::Fail)))
-        },
-        Ok(regex) => Ok(regex)
-    }?;
+    let (s, sep) = alt((char('/'), backslash_char))(s)?;
+    let (s, ast) = regex::parser::parse(sep, s)?;
+    let regex = Regex::new(&format!("{}", ast)).unwrap();
+    let (s, _) = char(sep)(s)?;
     Ok((s, Address::Context(regex)))
 }
 
@@ -173,30 +180,57 @@ pub fn parse_command_finish<'a>(s: Input) -> io::Result<Command> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use super::Address::*;
     use super::Function::*;
     use crate::new_regex_input;
     use assert_ok::assert_ok;
 
-    #[test]
-    fn fun_d() {
-        let p_f = parse_function(new_regex_input("d"));
+    fn function_equivalent(input: &str, expected: &Function, complete: bool) {
+        let p_f = parse_function(new_regex_input(input));
         assert_ok!(&p_f);
         if let Ok((rest, f)) = p_f {
-            assert_eq!(rest.fragment(), &"");
-            assert!(f.equivalent(&Fd), "unexpected function constructor {:?}", f);
+            assert!(f.equivalent(expected), "unexpected function constructor {:?}", f);
+            if complete {
+                assert_eq!(rest.fragment(), &"");
+            }
         }
+    }
+
+    fn dummy_regex() -> Regex {
+        Regex::new(".").unwrap() // ignored in equivalence
+    }
+
+    #[test]
+    fn fun_d() {
+        function_equivalent("d", &Fd, true);
     }
 
     #[test]
     fn s_slash() {
-        let p_f = parse_function(new_regex_input("s/a/b/"));
-        assert_ok!(&p_f);
-        if let Ok((rest, f)) = p_f {
-            match f {
-                Fs(_, replacement) => assert_eq!(replacement, "b"),
-                _ => panic!("failed to parse s")
-            }
+        function_equivalent("s/a/b/", &Fs(dummy_regex(), String::from("b")), true);
+    }
+
+    #[test]
+    fn s_comma() {
+        function_equivalent("s,a,b,", &Fs(dummy_regex(), String::from("b")), true);
+    }
+
+    fn address_equivalent(input: &str, expected: &Address) {
+        let p_addr = parse_address(new_regex_input(input));
+        assert_ok!(&p_addr);
+        if let Ok((rest, addr)) = p_addr {
+            assert!(addr.equivalent(expected), "unexpected Address constructor {:?}", addr);
             assert_eq!(rest.fragment(), &"");
         }
+    }
+
+    #[test]
+    fn addr_slash() {
+        address_equivalent("/foo/", &Context(dummy_regex()))
+    }
+
+    #[test]
+    fn addr_comma() {
+        address_equivalent("\\,foo,", &Context(dummy_regex()))
     }
 }
