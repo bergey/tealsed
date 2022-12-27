@@ -1,8 +1,10 @@
-use ::regex::Regex;
 use crate::regex;
 use crate::regex::parser::{Input};
 use crate::regex::equivalent::Equivalent;
+
+use ::regex::Regex;
 use std::io;
+use lazy_static::lazy_static;
 
 use nom;
 use nom::{Finish, IResult};
@@ -73,17 +75,20 @@ fn take_until<'a>(sep: char, s: Input) -> Progress<String> {
     Ok((s, vec.into_iter().collect()))
 }
 
+lazy_static! {
+    static ref DOLLAR: Regex = Regex::new(r"\$").unwrap();
+    static ref BACKSLASH_DIGITS: Regex = Regex::new(r"\\([0-9]+)").unwrap();
+}
+
 // convert sed \1 syntax to regex crate $1 and escape $
 pub fn clean_replacement(mut s: String) -> String {
     let mut dest = String::new();
 
     // TODO static regexen
-    let dollar = Regex::new(r"\$").unwrap();
-    let changed = regex::replace_all(&dollar, &s, &mut dest, "$$$$");
+    let changed = regex::replace_all(&*DOLLAR, &s, &mut dest, "$$$$");
     if changed {std::mem::swap(&mut s, &mut dest)}
 
-    let backslash_digits = Regex::new(r"\\([0-9]+)").unwrap();
-    let changed = regex::replace_all(&backslash_digits, &s, &mut dest, r"$${$1}");
+    let changed = regex::replace_all(&*BACKSLASH_DIGITS, &s, &mut dest, r"$${$1}");
     if changed {std::mem::swap(&mut s, &mut dest)}
 
     s
@@ -157,7 +162,7 @@ pub fn parse_command<'a>(s: Input) -> Progress<Command> {
                 Some(_) => {
                     let (s, addr) = parse_address(s)?;
                     Ok((s, Some(addr)))
-                } 
+                }
             }
         }
     }?;
