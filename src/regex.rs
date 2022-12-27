@@ -1,12 +1,12 @@
-mod equivalent;
+pub mod equivalent;
 
 pub mod parser;
 
 use ::regex::{Regex, Replacer};
 use std::io::{Error, ErrorKind};
 
-pub fn parse(s: &str) -> Result<Regex, Error> {
-    let ast = parser::parse_complete(s).map_err(|e| Error::new(ErrorKind::InvalidInput, e.to_string()))?;
+pub fn parse(end_char: char, s: &str) -> Result<Regex, Error> {
+    let ast = parser::parse_complete(end_char, s).map_err(|e| Error::new(ErrorKind::InvalidInput, e.to_string()))?;
     Regex::new(&format!("{}", ast)) // TODO panic on err
         .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
 }

@@ -1,6 +1,7 @@
 use ::regex::Regex;
 use crate::regex;
 use crate::regex::parser::{Input};
+use crate::regex::equivalent::Equivalent;
 use std::io;
 
 use nom;
@@ -20,6 +21,7 @@ pub enum Address {
 
 // single letter for uppercase function names
 // F followed by a letter for lowercase function names
+#[derive(Clone, Debug)]
 pub enum Function {
     D, Fd,
     G, Fg,
@@ -28,6 +30,22 @@ pub enum Function {
     Fp,
     Fs(Regex, String),
     Fx
+}
+
+impl Equivalent for Function {
+    fn equivalent(&self, other: &Function) -> bool {
+        use Function::*;
+        match (self, other) {
+            (D, D) | (Fd, Fd) => true,
+            (G, G) | (Fg, Fg) => true,
+            (H, H) | (Fh, Fh) => true,
+            (Fi(s), Fi(t)) => s == t,
+            (Fp, Fp) => true,
+            (Fs(_, s), Fs(_, t)) => s == t,
+            (Fx, Fx) => true,
+            _ => false
+        }
+    }
 }
 
 type Progress<'a, T> = IResult<Input<'a>, T>;
@@ -59,10 +77,11 @@ pub fn parse_function<'a>(cmd: Input<'a>) -> Progress<Function> {
         'p' => Ok((s, Fp)),
         's' => {
             let (s, sep) = anychar(s)?;
-            let (s, ast) = regex::parser::parse(s)?;
+            let (s, ast) = regex::parser::parse(sep, s)?;
             let (s, _) = char(sep)(s)?;
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
+            let (s, _) = char(sep)(s)?;
             Ok((s, Fs(regex, replacement)))
         },
         'x' => Ok((s, Fx)),
@@ -111,7 +130,7 @@ fn context_addr<'a>(s: Input) -> Progress<Address> {
     let (s, addr) = many0(none_of("/"))(s)?;
     let (s, _) = char('/')(s)?;
     // TODO \/ or [/] do not end the regex
-    let r_regex = regex::parse(String::from_iter(addr).as_ref());
+    let r_regex = regex::parse('/', String::from_iter(addr).as_ref());
     let regex = match r_regex {
         Err(_) => {
             Err(Err::Failure(Error::new(s, ErrorKind::Fail)))
@@ -148,5 +167,36 @@ pub fn parse_command_finish<'a>(s: Input) -> io::Result<Command> {
     match parse_command(s).finish() {
         Ok((_, cmd)) => Ok(cmd),
         Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("{}", e)))
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use super::Function::*;
+    use crate::new_regex_input;
+    use assert_ok::assert_ok;
+
+    #[test]
+    fn fun_d() {
+        let p_f = parse_function(new_regex_input("d"));
+        assert_ok!(&p_f);
+        if let Ok((rest, f)) = p_f {
+            assert_eq!(rest.fragment(), &"");
+            assert!(f.equivalent(&Fd), "unexpected function constructor {:?}", f);
+        }
+    }
+
+    #[test]
+    fn s_slash() {
+        let p_f = parse_function(new_regex_input("s/a/b/"));
+        assert_ok!(&p_f);
+        if let Ok((rest, f)) = p_f {
+            match f {
+                Fs(_, replacement) => assert_eq!(replacement, "b"),
+                _ => panic!("failed to parse s")
+            }
+            assert_eq!(rest.fragment(), &"");
+        }
     }
 }

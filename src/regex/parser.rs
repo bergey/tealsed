@@ -1,26 +1,29 @@
 extern crate nom;
 
-mod input;
-
 use nom::character::complete::{char, none_of, one_of, u32};
 use nom::branch::alt;
+use nom::error::{ Error, ErrorKind};
 use nom::{
     multi::many1,
     combinator::opt,
-    Finish, IResult,
+    Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
 use regex_syntax::ast::{Ast, Concat, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtraState {
-    pub last_regex: u32
+    pub last_regex: u32,
+    pub end_char: char,
 }
 
 pub type Input<'a> = LocatedSpan<&'a str, ExtraState>;
 
 pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
-    LocatedSpan::new_extra(s, ExtraState { last_regex: 0 })
+    LocatedSpan::new_extra(s, ExtraState {
+        last_regex: 0,
+        end_char: '/',
+    })
 }
 
 pub type Progress<'a> = IResult<Input<'a>, Ast>;
@@ -52,6 +55,11 @@ const SPECIAL_CHARS : &str = "^.[$()|*+?{\\";
 
 fn literal(s: Input<'_>) -> Progress {
     let start = position(s);
+    if let Some(c) = s.fragment().chars().next() {
+        if c == s.extra.end_char {
+            return Err(Err::Error(Error::new(s, ErrorKind::Fail)))
+        }
+    }
     let (s, lit) = none_of(SPECIAL_CHARS)(s)?;
     let end = position(s);
     Ok((s, Ast::Literal(Literal{
@@ -64,11 +72,15 @@ fn literal(s: Input<'_>) -> Progress {
 fn escaped_literal(s: Input<'_>) -> Progress {
     let start = position(s);
     let (s, _) = char('\\')(s)?;
-    let (s, c) = one_of(SPECIAL_CHARS)(s)?;
+    let (s, c) = alt((char(s.extra.end_char), one_of(SPECIAL_CHARS)))(s)?;
     let end = position(s);
     Ok((s, Ast::Literal(Literal{
         span: Span{start: start, end: end},
-        kind: LiteralKind::Punctuation,
+        kind: if c == s.extra.end_char {
+            LiteralKind::Punctuation
+        } else {
+            LiteralKind::Verbatim
+        },
         c: c
     })))
 }
@@ -151,15 +163,16 @@ fn branch(s: Input<'_>) -> Progress {
     }
 }
 
-pub fn parse(s: Input<'_>) -> Progress {
+pub fn parse(end_char: char, mut s: Input<'_>) -> Progress {
     // TODO posix Extended Regular Expressions
     // according to `man re_format` or IEEE 1003.2
+    s.extra.end_char = end_char;
     branch(s)
 }
 
-pub fn parse_complete(s: &str) -> Result<Ast, nom::error::Error<Input>> {
+pub fn parse_complete(end_char: char, s: &str) -> Result<Ast, nom::error::Error<Input>> {
     let s = new_regex_input(s);
-    let (_, ast) = parse(s).finish()?;
+    let (_, ast) = parse(end_char, s).finish()?;
     Ok(ast)
 }
 
@@ -173,7 +186,7 @@ pub mod tests {
 
     fn match_modern_syntax(pattern: &str) {
         let expected = Parser::new().parse(pattern).unwrap();
-        let actual = assert_ok!(parse_complete(pattern));
+        let actual = assert_ok!(parse_complete('/', pattern));
         if !actual.equivalent(&expected) {
             assert_eq!(actual, expected);
         }
@@ -182,7 +195,7 @@ pub mod tests {
     #[test]
     fn literals() {
         let input = "this is a valid regex";
-        let ast = assert_ok!(parse_complete(&input));
+        let ast = assert_ok!(parse_complete('/', &input));
         match &ast {
             Ast::Concat(c) => assert_eq!(c.asts.len(), input.len()),
             _ => panic!("unexpected regex parse: {:?}", ast),
@@ -191,7 +204,7 @@ pub mod tests {
 
     #[test]
     fn wildcard_dot() {
-        let ast = assert_ok!(parse_complete("."));
+        let ast = assert_ok!(parse_complete('/', "."));
         match &ast {
             Ast::Dot(_) => (),
             _ => panic!("unexpected regex parse: {:?}", ast),
