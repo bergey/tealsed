@@ -99,23 +99,6 @@ pub fn parse_function<'a>(cmd: Input<'a>) -> Progress<Function> {
     }
 }
 
-fn split_on(s: &str, sep: &char) -> Vec<String> {
-    let mut ret = Vec::new();
-    let mut backslash = false;
-    let mut begin = 0;
-    for (i, c) in s.char_indices() {
-        if c == *sep && !backslash {
-            // let mut part = String::new();
-            // part.push_str(&s[begin..i]);
-            // ret.push(part);
-            ret.push(s[begin..i].to_string());
-            begin = i + 1;
-        }
-        backslash = c == '\\';
-    }
-    ret
-}
-
 // handles only a single address
 // caller must maintain state between calls, decide whether to pass start or end pattern
 pub fn match_address(addr: &Address, text: &str, line_num: u64) -> bool {
