@@ -26,6 +26,8 @@ pub struct ExtraState {
 
 pub type Input<'a> = LocatedSpan<&'a str, ExtraState>;
 
+pub type Progress<'a, T = Ast> = IResult<Input<'a>, T>;
+
 pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
     LocatedSpan::new_extra(s, ExtraState {
         last_regex: 0,
@@ -33,8 +35,6 @@ pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
         syntax: Syntax::Teal,
     })
 }
-
-pub type Progress<'a, T = Ast> = IResult<Input<'a>, T>;
 
 // Construct a regex::ast Position from a nom_locate LocatedSpan
 fn position(s: Input) -> Position {
@@ -46,12 +46,12 @@ fn position(s: Input) -> Position {
 }
 
 // only valid in ()?
-fn empty(s: Input<'_>) -> Progress {
+fn empty(s: Input) -> Progress {
     let pos = position(s);
     Ok((s, Ast::Empty(Span{start: pos, end: pos.clone()})))
 }
 
-fn dot(s: Input<'_>) -> Progress {
+fn dot(s: Input) -> Progress {
     let start = position(s);
     let (s, _) = char('.')(s)?;
     let end = position(s);
@@ -61,7 +61,7 @@ fn dot(s: Input<'_>) -> Progress {
 // re_format says these have special meaning if not escaped with \, { is handled extra-specially
 const SPECIAL_CHARS : &str = "^.[$()|*+?\\";
 
-fn literal(s: Input<'_>) -> Progress {
+fn literal(s: Input) -> Progress {
     let start = position(s);
     let (s, lit) = none_of(SPECIAL_CHARS)(s)?;
     if lit == s.extra.end_char {
@@ -79,7 +79,7 @@ fn literal(s: Input<'_>) -> Progress {
     })))
 }
 
-fn escaped_literal(s: Input<'_>) -> Progress {
+fn escaped_literal(s: Input) -> Progress {
     use LiteralKind::*;
     use regex_syntax::ast::SpecialLiteralKind::*;
 
@@ -164,12 +164,12 @@ fn assertion(s: Input) -> Progress {
     })))
 }
 
-fn atom(s: Input<'_>) -> Progress {
+fn atom(s: Input) -> Progress {
     // TODO  [$()|*+?{\ 
     alt((group, literal, escaped_literal, dot, assertion))(s)
 }
 
-fn char_quantifier(s: Input<'_>) -> Progress<RepetitionOp> {
+fn char_quantifier(s: Input) -> Progress<RepetitionOp> {
     let start = position(s);
     let (s, c) = one_of("*+?")(s)?;
     let quantifier = match c {
@@ -186,7 +186,7 @@ fn char_quantifier(s: Input<'_>) -> Progress<RepetitionOp> {
     } ))
 }
 
-fn bound(s: Input<'_>) -> Progress<RepetitionOp> {
+fn bound(s: Input) -> Progress<RepetitionOp> {
     let start = position(s);
     let (s, _) = char('{')(s)?;
     let (s, min) = u32(s)?;
@@ -210,7 +210,7 @@ fn bound(s: Input<'_>) -> Progress<RepetitionOp> {
     } ))
 }
 
-fn quantified_piece(s: Input<'_>) -> Progress {
+fn quantified_piece(s: Input) -> Progress {
     let start = position(s);
     let (s, atom) = atom(s)?;
     let (s, o_quantifier) = opt(alt((char_quantifier, bound)))(s)?;
@@ -228,7 +228,7 @@ fn quantified_piece(s: Input<'_>) -> Progress {
     }
 }
 
-fn branch(s: Input<'_>) -> Progress {
+fn branch(s: Input) -> Progress {
     let start = position(s);
     let (s, atoms) = many1(quantified_piece)(s)?;
     let end = position(s);
@@ -263,7 +263,7 @@ fn alternation(s: Input) -> Progress {
     }
 }
 
-pub fn parse(end_char: char, mut s: Input<'_>) -> Progress {
+pub fn parse(end_char: char, mut s: Input) -> Progress {
     // TODO posix Extended Regular Expressions
     // according to `man re_format` or IEEE 1003.2
     s.extra.end_char = end_char;

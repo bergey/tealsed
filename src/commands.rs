@@ -67,7 +67,7 @@ pub struct Command {
     pub function: Function,
 }
 
-fn take_until<'a>(sep: char, s: Input) -> Progress<String> {
+fn take_until(sep: char, s: Input) -> Progress<String> {
     let string: String = sep.to_string();
     let str: &str = string.as_ref();
     let (s, vec) = many0(none_of(str))(s)?;
@@ -96,7 +96,7 @@ pub fn clean_replacement(syntax: &Syntax, mut s: String) -> String {
     s
 }
 
-pub fn parse_function<'a>(cmd: Input<'a>) -> Progress<Function> {
+pub fn parse_function(cmd: Input) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
     use Function::{*};
     match function {
@@ -131,7 +131,7 @@ pub fn match_address(addr: &Address, text: &str, line_num: u64) -> bool {
     }
 }
 
-pub fn parse_address<'a>(s: Input) -> Progress<Address> {
+pub fn parse_address(s: Input) -> Progress<Address> {
     alt((line_number_addr, context_addr))(s)
 }
 
@@ -145,7 +145,7 @@ fn backslash_char(s: Input) -> Progress<char> {
     anychar(s)
 }
 
-fn context_addr<'a>(s: Input) -> Progress<Address> {
+fn context_addr(s: Input) -> Progress<Address> {
     let (s, sep) = alt((char('/'), backslash_char))(s)?;
     let (s, ast) = regex::parser::parse(sep, s)?;
     let regex = Regex::new(&format!("{}", ast)).unwrap();
@@ -153,7 +153,7 @@ fn context_addr<'a>(s: Input) -> Progress<Address> {
     Ok((s, Address::Context(regex)))
 }
 
-pub fn parse_command<'a>(s: Input) -> Progress<Command> {
+pub fn parse_command(s: Input) -> Progress<Command> {
     let (s, start) = opt(|s|parse_address(s))(s)?;
     let (s, end) = match &start {
         None => Ok((s, None)),
@@ -176,7 +176,7 @@ pub fn parse_command<'a>(s: Input) -> Progress<Command> {
     }))
 }
 
-pub fn parse_command_finish<'a>(s: Input) -> io::Result<Command> {
+pub fn parse_command_finish(s: Input) -> io::Result<Command> {
     match parse_command(s).finish() {
         Ok((_, cmd)) => Ok(cmd),
         Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("{}", e)))
