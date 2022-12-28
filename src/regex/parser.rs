@@ -4,7 +4,7 @@ use nom::branch::alt;
 use nom::error::{ Error, ErrorKind};
 use nom::{
     multi::{many0, many1},
-    combinator::opt,
+    combinator::{not, opt, peek},
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
@@ -63,12 +63,14 @@ const SPECIAL_CHARS : &str = "^.[$()|*+?{\\";
 
 fn literal(s: Input<'_>) -> Progress {
     let start = position(s);
-    if let Some(c) = s.fragment().chars().next() {
-        if c == s.extra.end_char {
-            return Err(Err::Error(Error::new(s, ErrorKind::Fail)))
-        }
+    let (s, lit) = alt((none_of(SPECIAL_CHARS), char('{')))(s)?;
+    if lit == s.extra.end_char {
+        return Err(Err::Error(Error::new(s, ErrorKind::Fail)))
     }
-    let (s, lit) = none_of(SPECIAL_CHARS)(s)?;
+    if lit == '{' { // taken as a literal if it cannot be a bound
+        // TODO support this in Teal syntax?
+        peek(not(one_of("0123456789")))(s)?;
+    }
     let end = position(s);
     Ok((s, Ast::Literal(Literal{
         span: Span{start: start, end: end},
