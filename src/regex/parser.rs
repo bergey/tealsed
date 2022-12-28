@@ -8,7 +8,7 @@ use nom::{
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Alternation, Ast, Concat, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Alternation, Ast, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtraState {
@@ -87,14 +87,26 @@ fn escaped_literal(s: Input<'_>) -> Progress {
 fn group(s: Input) -> Progress {
     let start = position(s);
     let (s, _) = char( '(' )(s)?;
-    // TODO named & non-capturing
+    let (s, non_capturing) = opt(nom::sequence::pair(char('?'), char(':')))(s)?;
+    // TODO named (in some syntax)
     let (s, ast) = alternation(s)?;
     let (mut s, _) = char( ')' )(s)?;
     let end = position(s);
-    s.extra.last_regex += 1;
+
+    let group_kind = match non_capturing {
+        Some(_) => GroupKind::NonCapturing(Flags {
+            span: Span { start, end: start },
+            items: Vec::new(),
+        }),
+        None => {
+            s.extra.last_regex += 1;
+            GroupKind::CaptureIndex(s.extra.last_regex)
+        }
+    };
+
     Ok((s, Ast::Group( Group {
         span: Span{ start: start, end: end},
-        kind: GroupKind::CaptureIndex(s.extra.last_regex),
+        kind: group_kind,
         ast: Box::new(ast),
     })))
 }
