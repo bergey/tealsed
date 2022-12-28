@@ -275,7 +275,7 @@ pub mod tests {
     use super::*;
     use assert_ok::assert_ok;
     use regex_syntax::ast::parse::Parser;
-
+    use ::regex::Regex;
 
     fn match_modern_syntax(pattern: &str) {
         let expected = Parser::new().parse(pattern).unwrap();
@@ -283,6 +283,12 @@ pub mod tests {
         if !actual.equivalent(&expected) {
             assert_eq!(actual, expected);
         }
+    }
+
+    fn matches(pattern: &str, input: &str) {
+        let ast = assert_ok!(parse_complete('/', pattern));
+        let regex = assert_ok!(Regex::new(&format!("{}", ast)));
+        assert!(regex.is_match(input))
     }
 
     #[test]
@@ -367,6 +373,11 @@ pub mod tests {
     #[test]
     fn end() {
         match_modern_syntax("a$")
+    }
+
+    #[test]
+    fn matches_end() {
+        matches("$", "")
     }
 
 }
