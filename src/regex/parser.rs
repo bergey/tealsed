@@ -34,7 +34,7 @@ pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
     })
 }
 
-pub type Progress<'a> = IResult<Input<'a>, Ast>;
+pub type Progress<'a, T = Ast> = IResult<Input<'a>, T>;
 
 // Construct a regex::ast Position from a nom_locate LocatedSpan
 fn position(s: Input) -> Position {
@@ -93,7 +93,7 @@ fn escaped_literal(s: Input<'_>) -> Progress {
     })))
 }
 
-fn named_group_intro(s: Input) -> IResult<Input, GroupKind> {
+fn named_group_intro(s: Input) -> Progress<GroupKind> {
     let start = position(s);
     let (s, _) = char('P')(s)?;
     let (mut s, v) = nom::sequence::delimited( char('<'), many1(none_of(">")), char('>'))(s)?;
@@ -106,7 +106,7 @@ fn named_group_intro(s: Input) -> IResult<Input, GroupKind> {
     })))
 }
 
-fn non_capture_group_intro(s: Input) -> IResult<Input, GroupKind> {
+fn non_capture_group_intro(s: Input) -> Progress<GroupKind> {
     let start = position(s);
     let (s, _) = char(':')(s)?;
     let end = position(s);
@@ -162,7 +162,7 @@ fn atom(s: Input<'_>) -> Progress {
     alt((group, literal, escaped_literal, dot, assertion))(s)
 }
 
-fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionOp> {
+fn char_quantifier(s: Input<'_>) -> Progress<RepetitionOp> {
     let start = position(s);
     let (s, c) = one_of("*+?")(s)?;
     let quantifier = match c {
@@ -179,7 +179,7 @@ fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionOp> {
     } ))
 }
 
-fn bound(s: Input<'_>) -> IResult<Input, RepetitionOp> {
+fn bound(s: Input<'_>) -> Progress<RepetitionOp> {
     let start = position(s);
     let (s, _) = char('{')(s)?;
     let (s, min) = u32(s)?;

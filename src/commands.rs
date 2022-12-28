@@ -1,5 +1,5 @@
 use crate::regex;
-use crate::regex::parser::{Input, Syntax};
+use crate::regex::parser::{Input, Progress, Syntax};
 use crate::regex::equivalent::Equivalent;
 
 use ::regex::Regex;
@@ -7,7 +7,7 @@ use std::io;
 use lazy_static::lazy_static;
 
 use nom;
-use nom::{Finish, IResult};
+use nom::{Finish};
 use nom::branch::alt;
 use nom::character::complete::{anychar, char, none_of};
 use nom::combinator::{fail, opt, rest};
@@ -59,8 +59,6 @@ impl Equivalent for Function {
         }
     }
 }
-
-type Progress<'a, T> = IResult<Input<'a>, T>;
 
 #[derive(Clone, Debug)]
 pub struct Command {
