@@ -125,7 +125,7 @@ fn group(s: Input) -> Progress {
         Syntax::Extended => opt(preceded(char('?'), non_capture_group_intro))(s)?,
         Syntax::Teal => opt(preceded(char('?'), alt((named_group_intro, non_capture_group_intro))))(s)?
     };
-    let (s, ast) = alternation(s)?;
+    let (s, ast) = alt((alternation, empty))(s)?;
     let (mut s, _) = char( ')' )(s)?;
     let end = position(s);
 
@@ -332,6 +332,11 @@ pub mod tests {
     #[test]
     fn named_group() {
         match_modern_syntax("(?P<n>a*)")
+    }
+
+    #[test]
+    fn empty_group() {
+        match_modern_syntax("()")
     }
 
     #[test]

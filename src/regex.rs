@@ -3,13 +3,6 @@ pub mod equivalent;
 pub mod parser;
 
 use ::regex::{Regex, Replacer};
-use std::io::{Error, ErrorKind};
-
-pub fn parse(end_char: char, s: &str) -> Result<Regex, Error> {
-    let ast = parser::parse_complete(end_char, s).map_err(|e| Error::new(ErrorKind::InvalidInput, e.to_string()))?;
-    Regex::new(&format!("{}", ast)) // TODO panic on err
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
-}
 
 // return true if any replacement was made
 // this is regex::Regex::replacen, except using DoubleString instead of Cow to make applying multiple replacements to a single string efficient
