@@ -11,7 +11,7 @@ impl Equivalent for Ast {
             (Ast::Flags(_), Ast::Flags(_)) => panic!("not implemented"),
             (Ast::Literal(a), Ast::Literal(b)) => a.equivalent(b),
             (Ast::Dot(_), Ast::Dot(_)) => true,
-            (Ast::Assertion(_), Ast::Assertion(_)) => panic!("not implemented"),
+            (Ast::Assertion(a), Ast::Assertion(b)) => a.equivalent(b),
             (Ast::Class(_), Ast::Class(_)) => panic!("not implemented"),
             (Ast::Repetition(a), Ast::Repetition(b)) => a.equivalent(b),
             (Ast::Group(a), Ast::Group(b)) => a.equivalent(b),
@@ -25,6 +25,12 @@ impl Equivalent for Ast {
 impl Equivalent for Literal {
     fn equivalent(&self, other: &Literal) -> bool {
         self.c == other.c && self.kind == other.kind
+    }
+}
+
+impl Equivalent for Assertion {
+    fn equivalent(&self, other: &Assertion) -> bool {
+        self.kind == other.kind
     }
 }
 

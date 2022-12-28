@@ -8,7 +8,7 @@ use nom::{
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Alternation, Ast, CaptureName, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Alternation, Assertion, AssertionKind, Ast, CaptureName, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Syntax {
@@ -142,9 +142,24 @@ fn group(s: Input) -> Progress {
     })))
 }
 
+fn assertion(s: Input) -> Progress {
+    let start = position(s);
+    let (s, c) = one_of("^$")(s)?;
+    let kind = match c {
+        '^' => AssertionKind::StartLine,
+        '$' => AssertionKind::EndLine,
+        _ => panic!("impossible assertion char")
+    };
+    let end = position(s);
+    Ok((s, Ast::Assertion(Assertion {
+        span: Span { start, end },
+        kind: kind
+    })))
+}
+
 fn atom(s: Input<'_>) -> Progress {
-    // TODO () ^ $ \^.[$()|*+?{\ \
-    alt((group, literal, escaped_literal, dot))(s)
+    // TODO  [$()|*+?{\ 
+    alt((group, literal, escaped_literal, dot, assertion))(s)
 }
 
 fn char_quantifier(s: Input<'_>) -> IResult<Input, RepetitionOp> {
@@ -347,6 +362,11 @@ pub mod tests {
     #[test]
     fn alternation2() {
         match_modern_syntax("a|b|c")
+    }
+
+    #[test]
+    fn end() {
+        match_modern_syntax("a$")
     }
 
 }
