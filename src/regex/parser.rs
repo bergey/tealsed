@@ -8,7 +8,7 @@ use nom::{
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Alternation, Assertion, AssertionKind, Ast, CaptureName, Class, ClassBracketed, ClassSet, ClassSetItem, ClassSetUnion, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Alternation, Assertion, AssertionKind, Ast, CaptureName, Class, ClassBracketed, ClassSet, ClassSetItem, ClassSetRange, ClassSetUnion, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Syntax {
@@ -169,7 +169,7 @@ fn class(s: Input) -> Progress {
     let start = position(s);
     let (s, _) = char('[')(s)?;
     let (s, negated) = opt(char('^'))(s)?;
-    let (s, items) = many1(class_literal)(s)?;
+    let (s, items) = many1(alt((class_range, class_literal)))(s)?;
     let (s, _) = char(']')(s)?;
     let end = position(s);
     Ok((s, Ast::Class(Class::Bracketed( ClassBracketed {
@@ -197,6 +197,26 @@ fn class_literal(s: Input) -> Progress<ClassSetItem> {
         span: Span { start, end },
         kind: LiteralKind::Verbatim,
         c: c
+    })))
+}
+
+fn class_range(s: Input) -> Progress<ClassSetItem> {
+    let start = position(s);
+    let (s, a) = none_of("-]")(s)?;
+    let (s, _) = char('-')(s)?;
+    let (s, z) = none_of("-]")(s)?;
+    let end = position(s);
+    let span = Span { start, end };  // I'm lazy, don't care where each char is
+    Ok((s, ClassSetItem::Range(ClassSetRange {
+        span: Span { start, end },
+        start: Literal {
+            span, kind: LiteralKind::Verbatim,
+            c: a
+        },
+        end: Literal {
+            span, kind: LiteralKind::Verbatim,
+            c: z
+        }
     })))
 }
 
