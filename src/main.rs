@@ -72,6 +72,13 @@ where R: Iterator<Item = io::Result<String>> {
 
                 match &cmd.function {
                     Equals => writeln!(output, "{}", line_number).unwrap(),
+                    Fc(text) => {
+                        read.clear();
+                        // at end of range, or once per matching line if no range
+                        if cmd.end.is_none() || !in_matching_range[cmd_index] {
+                            write!(output, "{}", text)?;
+                        }
+                    },
                     Fd => {
                         read.clear();
                         break;

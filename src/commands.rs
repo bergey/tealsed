@@ -36,6 +36,7 @@ impl Equivalent for Address {
 #[derive(Clone, Debug)]
 pub enum Function {
     Equals,
+    Fc(String),
     D, Fd,
     G, Fg,
     H, Fh,
@@ -103,6 +104,12 @@ pub fn parse_function(cmd: Input) -> Progress<Function> {
     use Function::{*};
     match function {
         '=' => Ok((s, Equals)), // spec says only allows one addr, not a 2-addr range 🤷
+        'c' => {
+            let (s, _) = char('\\')(s)?;
+            let (s, _) = char('\n')(s)?;
+            let(s, text) = rest(s)?; // TODO read to end of line
+            Ok((s, Fc(text.to_string())))
+        }
         'd' => Ok((s, Fd)),
         'D' => Ok((s, D)),
         'g' => Ok((s, Fg)),
