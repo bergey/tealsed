@@ -8,7 +8,7 @@ use nom::{
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Alternation, Assertion, AssertionKind, Ast, CaptureName, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Alternation, Assertion, AssertionKind, Ast, CaptureName, Class, ClassBracketed, ClassSet, ClassSetItem, ClassSetUnion, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Syntax {
@@ -164,9 +164,44 @@ fn assertion(s: Input) -> Progress {
     })))
 }
 
+// also known as "bracket expression"
+fn class(s: Input) -> Progress {
+    let start = position(s);
+    let (s, _) = char('[')(s)?;
+    let (s, negated) = opt(char('^'))(s)?;
+    let (s, items) = many1(class_literal)(s)?;
+    let (s, _) = char(']')(s)?;
+    let end = position(s);
+    Ok((s, Ast::Class(Class::Bracketed( ClassBracketed {
+        span: Span { start, end },
+        negated: negated.is_some(),
+        // DESIGN: do I want to support Rust-regex set operations, in Syntax::Teal?
+        kind: ClassSet::Item(
+            if items.len() == 1 {
+                items.into_iter().next().unwrap()
+            } else {
+                ClassSetItem::Union( ClassSetUnion {
+                    span: Span { start, end },
+                    items
+                })
+            }
+        )
+    }) )))
+}
+
+fn class_literal(s: Input) -> Progress<ClassSetItem> {
+    let start = position(s);
+    let (s, c) = none_of("]")(s)?;
+    let end = position(s);
+    Ok((s, ClassSetItem::Literal(Literal {
+        span: Span { start, end },
+        kind: LiteralKind::Verbatim,
+        c: c
+    })))
+}
+
 fn atom(s: Input) -> Progress {
-    // TODO  [$()|*+?{\ 
-    alt((group, literal, escaped_literal, dot, assertion))(s)
+    alt((group, class, literal, escaped_literal, dot, assertion))(s)
 }
 
 fn char_quantifier(s: Input) -> Progress<RepetitionOp> {
@@ -385,6 +420,26 @@ pub mod tests {
     #[test]
     fn matches_end() {
         matches("$", "")
+    }
+
+    #[test]
+    fn class_one() {
+        match_modern_syntax("[a]")
+    }
+
+    #[test]
+    fn class_two() {
+        match_modern_syntax("[ab]")
+    }
+
+    #[test]
+    fn class_negated() {
+        match_modern_syntax("[^a]")
+    }
+
+    #[test]
+    fn class_range() {
+        match_modern_syntax("[a-z]")
     }
 
 }
