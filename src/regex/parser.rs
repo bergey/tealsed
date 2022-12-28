@@ -1,5 +1,5 @@
 extern crate nom;
-use nom::character::complete::{char, none_of, one_of, u32};
+use nom::character::complete::{anychar, char, none_of, one_of, u32};
 use nom::branch::alt;
 use nom::error::{ Error, ErrorKind};
 use nom::{
@@ -58,12 +58,12 @@ fn dot(s: Input<'_>) -> Progress {
     Ok((s, Ast::Dot(Span{start: start, end: end})))
 }
 
-// re_format says these have special meaning if not escaped with \
-const SPECIAL_CHARS : &str = "^.[$()|*+?{\\";
+// re_format says these have special meaning if not escaped with \, { is handled extra-specially
+const SPECIAL_CHARS : &str = "^.[$()|*+?\\";
 
 fn literal(s: Input<'_>) -> Progress {
     let start = position(s);
-    let (s, lit) = alt((none_of(SPECIAL_CHARS), char('{')))(s)?;
+    let (s, lit) = none_of(SPECIAL_CHARS)(s)?;
     if lit == s.extra.end_char {
         return Err(Err::Error(Error::new(s, ErrorKind::Fail)))
     }
@@ -80,16 +80,21 @@ fn literal(s: Input<'_>) -> Progress {
 }
 
 fn escaped_literal(s: Input<'_>) -> Progress {
+    use LiteralKind::*;
+    use regex_syntax::ast::SpecialLiteralKind::*;
+
     let start = position(s);
     let (s, _) = char('\\')(s)?;
-    let (s, c) = alt((char(s.extra.end_char), one_of(SPECIAL_CHARS)))(s)?;
+    let (s, c) = anychar(s)?;
     let end = position(s);
     Ok((s, Ast::Literal(Literal{
         span: Span{start: start, end: end},
-        kind: if c == s.extra.end_char {
-            LiteralKind::Punctuation
-        } else {
-            LiteralKind::Verbatim
+        kind: match c {
+            '^' | '.' | '[' | '$' | '(' | ')' | '|' | '*' | '+' | '?' | '{' | '\\' => Punctuation,
+            'n' => Special(LineFeed),
+            'r' => Special(CarriageReturn),
+            't' => Special(Tab),
+            _ => Verbatim,
         },
         c: c
     })))
