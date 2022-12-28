@@ -194,12 +194,10 @@ pub mod tests {
 
     fn function_equivalent(input: &str, expected: &Function, complete: bool) {
         let p_f = parse_function(new_regex_input(input));
-        assert_ok!(&p_f);
-        if let Ok((rest, f)) = p_f {
-            assert!(f.equivalent(expected), "unexpected function constructor {:?}", f);
-            if complete {
-                assert_eq!(rest.fragment(), &"");
-            }
+        let (rest, f) = assert_ok!(&p_f);
+        assert!(f.equivalent(expected), "unexpected function constructor {:?}", f);
+        if complete {
+            assert_eq!(rest.fragment(), &"");
         }
     }
 
@@ -224,11 +222,9 @@ pub mod tests {
 
     fn address_equivalent(input: &str, expected: &Address) {
         let p_addr = parse_address(new_regex_input(input));
-        assert_ok!(&p_addr);
-        if let Ok((rest, addr)) = p_addr {
-            assert!(addr.equivalent(expected), "unexpected Address constructor {:?}", addr);
-            assert_eq!(rest.fragment(), &"");
-        }
+        let (rest, addr) = assert_ok!(&p_addr);
+        assert!(addr.equivalent(expected), "unexpected Address constructor {:?}", addr);
+        assert_eq!(rest.fragment(), &"");
     }
 
     #[test]
