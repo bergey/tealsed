@@ -4,7 +4,7 @@ use std::io;
 mod commands;
 mod regex;
 use commands::{Command, Function, match_address, parse_command_finish};
-use crate::regex::parser::new_regex_input;
+use crate::regex::parser::{Syntax, new_regex_input};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -16,6 +16,8 @@ struct Cli {
     commands: Vec<String>,
     #[arg(short='E', help="posix extended regexp syntax (ignored)")]
     extended_syntax: bool,
+    #[arg(short='T', help="tealsed regexp syntax; default if invoked as tsed")]
+    teal_syntax: bool,
     #[arg(short='n', help="do not print every line")]
     no_print: bool,
 }
@@ -120,12 +122,32 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
 fn main() -> io::Result<()> {
     let args = Cli::parse();
 
+    // one syntax for all regexen in all commands
+    let syntax = match (args.extended_syntax, args.teal_syntax) {
+        (true, false) => Syntax::Extended,
+        (false, true) => Syntax::Teal,
+        (true, true) => panic!("-E and -T are incompatible; pick one"),
+        (false, false) => 
+        {
+            let invoked_as = std::env::current_exe()?;
+            let name = invoked_as.file_name().expect("could not discover own name");
+            if name == "tsed" {
+                Syntax::Teal
+            } else {
+                Syntax::Basic
+            }
+        }
+    };
 
     let commands: Vec<Command> =
         if args.commands.len() == 0 {
             match args.command_or_files.first() {
-                Some(arg) => parse_command_finish(new_regex_input(&arg))
-                    .map(|cmd| Vec::from([cmd]))?,
+                Some(arg) => {
+                    let mut s = new_regex_input(&arg);
+                    s.extra.syntax = syntax;
+                    parse_command_finish(s)
+                        .map(|cmd| Vec::from([cmd]))?
+                },
                 None => Vec::new()
             }
         } else {

@@ -8,12 +8,20 @@ use nom::{
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Alternation, Ast, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Alternation, Ast, CaptureName, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Syntax {
+    Basic, // POSIX basic, according man re_syntax
+    Extended,  // POSIX Extended, like egrep
+    Teal, // probably the syntax of regex crate except substitutions, TBD
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtraState {
     pub last_regex: u32,
     pub end_char: char,
+    pub syntax: Syntax,
 }
 
 pub type Input<'a> = LocatedSpan<&'a str, ExtraState>;
@@ -22,6 +30,7 @@ pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
     LocatedSpan::new_extra(s, ExtraState {
         last_regex: 0,
         end_char: '/',
+        syntax: Syntax::Teal,
     })
 }
 
@@ -84,29 +93,51 @@ fn escaped_literal(s: Input<'_>) -> Progress {
     })))
 }
 
+fn named_group_intro(s: Input) -> IResult<Input, GroupKind> {
+    let start = position(s);
+    let (s, _) = char('P')(s)?;
+    let (mut s, v) = nom::sequence::delimited( char('<'), many1(none_of(">")), char('>'))(s)?;
+    let end = position(s);
+    s.extra.last_regex += 1;
+    Ok((s, GroupKind::CaptureName( CaptureName {
+        span: Span { start, end },
+        name: v.into_iter().collect(),
+        index: s.extra.last_regex,
+    })))
+}
+
+fn non_capture_group_intro(s: Input) -> IResult<Input, GroupKind> {
+    let start = position(s);
+    let (s, _) = char(':')(s)?;
+    let end = position(s);
+    Ok((s, GroupKind::NonCapturing(Flags {
+        span: Span { start, end },
+        items: Vec::new(),
+    })))
+}
+
 fn group(s: Input) -> Progress {
+    use nom::sequence::preceded;
     let start = position(s);
     let (s, _) = char( '(' )(s)?;
-    let (s, non_capturing) = opt(nom::sequence::pair(char('?'), char(':')))(s)?;
-    // TODO named (in some syntax)
+    let (s, group_kind) = match s.extra.syntax {
+        Syntax::Basic => (s, None),
+        Syntax::Extended => opt(preceded(char('?'), non_capture_group_intro))(s)?,
+        Syntax::Teal => opt(preceded(char('?'), alt((named_group_intro, non_capture_group_intro))))(s)?
+    };
     let (s, ast) = alternation(s)?;
     let (mut s, _) = char( ')' )(s)?;
     let end = position(s);
 
-    let group_kind = match non_capturing {
-        Some(_) => GroupKind::NonCapturing(Flags {
-            span: Span { start, end: start },
-            items: Vec::new(),
-        }),
-        None => {
-            s.extra.last_regex += 1;
-            GroupKind::CaptureIndex(s.extra.last_regex)
-        }
-    };
-
     Ok((s, Ast::Group( Group {
         span: Span{ start: start, end: end},
-        kind: group_kind,
+        kind: match group_kind {
+            Some(k) => k,
+            None => {
+                s.extra.last_regex += 1;
+                GroupKind::CaptureIndex(s.extra.last_regex)
+            }
+        },
         ast: Box::new(ast),
     })))
 }
@@ -291,6 +322,16 @@ pub mod tests {
     #[test]
     fn group() {
         match_modern_syntax("(a*)")
+    }
+
+    #[test]
+    fn non_capturing_group() {
+        match_modern_syntax("(?:a*)")
+    }
+
+    #[test]
+    fn named_group() {
+        match_modern_syntax("(?P<n>a*)")
     }
 
     #[test]

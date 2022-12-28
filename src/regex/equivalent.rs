@@ -42,7 +42,19 @@ impl Equivalent for RepetitionOp {
 
 impl Equivalent for Group {
     fn equivalent(&self, other: &Group) -> bool {
-        self.kind == other.kind && self.ast.equivalent(&other.ast)
+        self.kind.equivalent(&other.kind) && self.ast.equivalent(&other.ast)
+    }
+}
+
+impl Equivalent for GroupKind {
+    fn equivalent(&self, other: &GroupKind) -> bool {
+        use GroupKind::*;
+        match (self, other) {
+            (CaptureIndex(a), CaptureIndex(b)) => a == b,
+            (CaptureName(a), CaptureName(b)) => a.name == b.name  && a.index == b.index,
+            (NonCapturing(_), NonCapturing(_)) => true, // TODO flags?
+            _ => false
+        }
     }
 }
 

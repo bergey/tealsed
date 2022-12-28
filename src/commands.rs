@@ -1,5 +1,5 @@
 use crate::regex;
-use crate::regex::parser::{Input};
+use crate::regex::parser::{Input, Syntax};
 use crate::regex::equivalent::Equivalent;
 
 use ::regex::Regex;
@@ -81,10 +81,13 @@ lazy_static! {
 }
 
 // convert sed \1 syntax to regex crate $1 and escape $
-pub fn clean_replacement(mut s: String) -> String {
+pub fn clean_replacement(syntax: &Syntax, mut s: String) -> String {
+    if syntax == &Syntax::Teal {
+        return s
+    }
+
     let mut dest = String::new();
 
-    // TODO static regexen
     let changed = regex::replace_all(&*DOLLAR, &s, &mut dest, "$$$$");
     if changed {std::mem::swap(&mut s, &mut dest)}
 
@@ -113,7 +116,7 @@ pub fn parse_function<'a>(cmd: Input<'a>) -> Progress<Function> {
             let regex = Regex::new(&format!("{}", ast)).unwrap();
             let (s, replacement) = take_until(sep, s)?;
             let (s, _) = char(sep)(s)?;
-            Ok((s, Fs(regex, clean_replacement(replacement))))
+            Ok((s, Fs(regex, clean_replacement(&s.extra.syntax, replacement))))
         },
         'x' => Ok((s, Fx)),
         _ => fail(cmd)
@@ -240,16 +243,16 @@ pub mod tests {
 
     #[test]
     fn clean_noop() {
-        assert_eq!(clean_replacement("foo".to_string()), "foo")
+        assert_eq!(clean_replacement(&Syntax::Extended, "foo".to_string()), "foo")
     }
 
     #[test]
     fn clean_ref() {
-        assert_eq!(clean_replacement(r"foo\1".to_string()), "foo${1}")
+        assert_eq!(clean_replacement(&Syntax::Extended, r"foo\1".to_string()), "foo${1}")
     }
 
     #[test]
     fn clean_dollar() {
-        assert_eq!(clean_replacement("$foo".to_string()), "$$foo")
+        assert_eq!(clean_replacement(&Syntax::Extended, "$foo".to_string()), "$$foo")
     }
 }
