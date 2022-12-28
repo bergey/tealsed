@@ -99,8 +99,8 @@ where R: Iterator<Item = io::Result<String>> {
                         hold.push_str("\n");
                         hold.push_str(&read);
                     },
-                    Fi(text) => write!(output, "{}", text).unwrap(),
-                    Fp => write!(output, "{}", read).unwrap(),
+                    Fi(text) => writeln!(output, "{}", text).unwrap(),
+                    Fp => writeln!(output, "{}", read).unwrap(),
                     Fs(regex, replacement) => {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
@@ -119,7 +119,7 @@ where R: Iterator<Item = io::Result<String>> {
                 }
             }
         }
-        if !no_print { write!(output, "{}", read).unwrap(); }
+        if !no_print { writeln!(output, "{}", read).unwrap(); }
         buf.clear();
     }
     Ok(())
@@ -205,7 +205,9 @@ pub mod tests {
         let mut output = Vec::new();
         assert_ok!(
             run_commands(&commands, lines.into_iter(), &mut output, false));
-        let actual = assert_ok!( String::from_utf8(output) );
+        let mut actual = assert_ok!( String::from_utf8(output) );
+        let last = actual.pop();
+        assert_eq!(last, Some('\n'));
         assert_eq!(actual, expected);
     }
 
