@@ -35,6 +35,7 @@ impl Equivalent for Address {
 // F followed by a letter for lowercase function names
 #[derive(Clone, Debug)]
 pub enum Function {
+    Equals,
     D, Fd,
     G, Fg,
     H, Fh,
@@ -48,6 +49,7 @@ impl Equivalent for Function {
     fn equivalent(&self, other: &Function) -> bool {
         use Function::*;
         match (self, other) {
+            (Equals, Equals) => true,
             (D, D) | (Fd, Fd) => true,
             (G, G) | (Fg, Fg) => true,
             (H, H) | (Fh, Fh) => true,
@@ -100,6 +102,7 @@ pub fn parse_function(cmd: Input) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
     use Function::{*};
     match function {
+        '=' => Ok((s, Equals)), // spec says only allows one addr, not a 2-addr range 🤷
         'd' => Ok((s, Fd)),
         'D' => Ok((s, D)),
         'g' => Ok((s, Fg)),

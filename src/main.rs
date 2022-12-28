@@ -71,6 +71,7 @@ where R: Iterator<Item = io::Result<String>> {
                 use Function::{*};
 
                 match &cmd.function {
+                    Equals => writeln!(output, "{}", line_number).unwrap(),
                     Fd => {
                         read.clear();
                         break;
