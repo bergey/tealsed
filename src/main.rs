@@ -79,9 +79,7 @@ where R: Iterator<Item = io::Result<String>> {
                     D => {
                         if let Some(ix) = read.find('\n') {
                             write.push_str(&read[ix+1..]);
-                            let tmp = read;
-                            read = write;
-                            write = tmp;
+                            std::mem::swap(&mut read, &mut write);
                             write.clear();
                         } else {
                             read.clear();
@@ -109,17 +107,11 @@ where R: Iterator<Item = io::Result<String>> {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
                         if changed {
-                            let tmp = read;
-                            read = write;
-                            write = tmp;
+                            std::mem::swap(&mut read, &mut write);
                             write.clear();
                         }
                     },
-                    Fx => {
-                        let tmp = read;
-                        read = hold;
-                        hold = tmp;
-                    }
+                    Fx => std::mem::swap(&mut read, &mut hold),
                 }
 
             }
