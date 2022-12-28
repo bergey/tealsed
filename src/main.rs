@@ -13,13 +13,15 @@ struct Cli {
     /// The pattern to find
     #[command()]
     command_or_files: Vec<String>, // s/regex/replacement/
-    #[arg(short='e')]
+    #[arg(short='e', long="expression")]
     commands: Vec<String>,
-    #[arg(short='E', help="posix extended regexp syntax (ignored)")]
+    #[arg(short='E', long="regexp-extended", help="posix extended regexp syntax")]
     extended_syntax: bool,
     #[arg(short='T', help="tealsed regexp syntax; default if invoked as tsed")]
     teal_syntax: bool,
-    #[arg(short='n', help="do not print every line")]
+    #[arg(long, help="accept some GNU extensions")]
+    gnu: bool,
+    #[arg(short='n', long="quiet", help="do not print every line")]
     no_print: bool,
     #[arg(long, help="print intermediate results")]
     debug: bool,
@@ -67,6 +69,7 @@ where R: Iterator<Item = io::Result<String>> {
             };
             if should_apply {
                 use Function::{*};
+
                 match &cmd.function {
                     Fd => {
                         read.clear();
@@ -117,6 +120,7 @@ where R: Iterator<Item = io::Result<String>> {
                         hold = tmp;
                     }
                 }
+
             }
         }
         if !no_print { writeln!(output, "{}", read).unwrap(); }

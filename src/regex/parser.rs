@@ -20,8 +20,10 @@ pub enum Syntax {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtraState {
     pub last_regex: u32,
+    // below are not state; they are set once at start of parsing
     pub end_char: char,
     pub syntax: Syntax,
+    pub gnu: bool,
 }
 
 pub type Input<'a> = LocatedSpan<&'a str, ExtraState>;
@@ -33,6 +35,7 @@ pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
         last_regex: 0,
         end_char: '/',
         syntax: Syntax::Teal,
+        gnu: false
     })
 }
 
