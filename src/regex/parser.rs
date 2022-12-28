@@ -3,12 +3,12 @@ use nom::character::complete::{char, none_of, one_of, u32};
 use nom::branch::alt;
 use nom::error::{ Error, ErrorKind};
 use nom::{
-    multi::many1,
+    multi::{many0, many1},
     combinator::opt,
     Err, Finish, IResult,
 };
 use nom_locate::{LocatedSpan};
-use regex_syntax::ast::{Ast, Concat, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
+use regex_syntax::ast::{Alternation, Ast, Concat, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtraState {
@@ -88,7 +88,7 @@ fn group(s: Input) -> Progress {
     let start = position(s);
     let (s, _) = char( '(' )(s)?;
     // TODO named & non-capturing
-    let (s, ast) = branch(s)?;
+    let (s, ast) = alternation(s)?;
     let (mut s, _) = char( ')' )(s)?;
     let end = position(s);
     s.extra.last_regex += 1;
@@ -177,11 +177,32 @@ fn branch(s: Input<'_>) -> Progress {
     }
 }
 
+fn bar_branch(s: Input) -> Progress {
+    let (s, _) = char('|')(s)?;
+    branch(s)
+}
+
+fn alternation(s: Input) -> Progress {
+    let start = position(s);
+    let (s, first) = branch(s)?;
+    let (s, mut rest) = many0(bar_branch)(s)?;
+    let end = position(s);
+    if rest.len() == 0 {
+        Ok((s, first))   
+    } else {
+        rest.insert(0, first);
+        Ok((s, Ast::Alternation(Alternation {
+            span: Span { start, end },
+            asts: rest
+        })))
+    }
+}
+
 pub fn parse(end_char: char, mut s: Input<'_>) -> Progress {
     // TODO posix Extended Regular Expressions
     // according to `man re_format` or IEEE 1003.2
     s.extra.end_char = end_char;
-    branch(s)
+    alternation(s)
 }
 
 pub fn parse_complete(end_char: char, s: &str) -> Result<Ast, nom::error::Error<Input>> {
@@ -259,5 +280,15 @@ pub mod tests {
     fn group() {
         match_modern_syntax("(a*)")
     }
+
+    #[test]
+    fn alternation1() {
+        match_modern_syntax("a|b")
+    }
     
+    #[test]
+    fn alternation2() {
+        match_modern_syntax("a|b|c")
+    }
+
 }

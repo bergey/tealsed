@@ -15,7 +15,7 @@ impl Equivalent for Ast {
             (Ast::Class(_), Ast::Class(_)) => panic!("not implemented"),
             (Ast::Repetition(a), Ast::Repetition(b)) => a.equivalent(b),
             (Ast::Group(a), Ast::Group(b)) => a.equivalent(b),
-            (Ast::Alternation(_), Ast::Alternation(_)) => panic!("not implemented"),
+            (Ast::Alternation(a), Ast::Alternation(b)) => a.equivalent(b),
             (Ast::Concat(a), Ast::Concat(b)) => a.equivalent(b),
             _ => false
         }
@@ -43,6 +43,13 @@ impl Equivalent for RepetitionOp {
 impl Equivalent for Group {
     fn equivalent(&self, other: &Group) -> bool {
         self.kind == other.kind && self.ast.equivalent(&other.ast)
+    }
+}
+
+impl Equivalent for Alternation {
+    fn equivalent(&self, other: &Alternation) -> bool {
+        self.asts.len() == other.asts.len() &&
+            self.asts.iter().enumerate().all( |(i, a)| a.equivalent(&other.asts[i]) )
     }
 }
 
