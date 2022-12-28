@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::io;
+use std::io::{BufRead, Write};
 
 mod commands;
 mod regex;
@@ -20,9 +21,12 @@ struct Cli {
     teal_syntax: bool,
     #[arg(short='n', help="do not print every line")]
     no_print: bool,
+    #[arg(long, help="print intermediate results")]
+    debug: bool,
 }
 
-fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Result<()> where R: io::BufRead {
+fn run_commands<R>(commands: &[Command], input: R, output: &mut dyn Write, no_print: bool) -> io::Result<()>
+where R: Iterator<Item = io::Result<String>> {
     // input buffer, reused for each line
     let mut buf = String::new();
     let mut line_number = 0;
@@ -39,10 +43,12 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
         in_matching_range.push(false);
     }
 
-    while input.read_line(&mut buf)? != 0 {
+    for r_line in input {
+        let line = r_line?;
         line_number += 1;
         read.clear();
-        read.push_str(&buf);
+        read.push_str(&line);
+
         for (cmd_index, cmd) in commands.iter().enumerate() {
             let should_apply = match (&cmd.start, &cmd.end) {
                 (None, None) => true,
@@ -93,8 +99,8 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                         hold.push_str("\n");
                         hold.push_str(&read);
                     },
-                    Fi(text) => print!("{}", text),
-                    Fp => print!("{}", read),
+                    Fi(text) => write!(output, "{}", text).unwrap(),
+                    Fp => write!(output, "{}", read).unwrap(),
                     Fs(regex, replacement) => {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
@@ -113,7 +119,7 @@ fn run_commands<R>(commands: &[Command], mut input: R, no_print: bool) -> io::Re
                 }
             }
         }
-        if !no_print { print!("{}", read); }
+        if !no_print { write!(output, "{}", read).unwrap(); }
         buf.clear();
     }
     Ok(())
@@ -156,23 +162,64 @@ fn main() -> io::Result<()> {
                 .collect::<io::Result<Vec<Command>>>()?
         };
 
+    if args.debug {
+        eprintln!("{:?}", commands)
+    }
+
     let file_args = if args.commands.len() == 0 {
         &args.command_or_files[1..]
     } else {
         &args.command_or_files
     };
 
+    let stdout = io::stdout();
+    let mut out_handle = stdout.lock();
+
     if file_args.len() == 0 {
         let stdin = io::stdin();
-        let mut handle = stdin.lock();
-        run_commands(&commands, &mut handle, args.no_print)?;
+        let in_handle = stdin.lock();
+        run_commands(&commands, &mut in_handle.lines(), &mut out_handle, args.no_print)?;
     } else {
         for filename in file_args {
             let file = std::fs::File::open(filename)?;
-            let mut buf_reader = io::BufReader::new(file);
-            run_commands(&commands, &mut buf_reader, args.no_print)?;
+            let buf_reader = io::BufReader::new(file);
+            run_commands(&commands, &mut buf_reader.lines(), &mut out_handle, args.no_print)?;
         }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use assert_ok::assert_ok;
+
+    fn test_commands(cmd_strs: &[&str], input: &str, expected: &str) {
+        let r_commands = cmd_strs.iter()
+                .map(|cmd| parse_command_finish(new_regex_input(&cmd)))
+                .collect::<io::Result<Vec<Command>>>();
+        let commands = assert_ok!(r_commands);
+        let mut lines = Vec::new();
+        lines.push(Ok(input.to_owned()));
+        let mut output = Vec::new();
+        assert_ok!(
+            run_commands(&commands, lines.into_iter(), &mut output, false));
+        let actual = assert_ok!( String::from_utf8(output) );
+        assert_eq!(actual, expected);
+    }
+
+    fn test_one_command(command: &str, input: &str, expected: &str) {
+        test_commands(&[command], input, expected)
+    }
+
+    #[test]
+    fn replace() {
+        test_one_command("s/a/b/", "ack", "bck")
+    }
+
+    #[test]
+    fn replace_end() {
+        test_one_command("s/$/d/", "foo", "food")
+    }
 }

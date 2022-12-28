@@ -13,7 +13,7 @@ use nom::character::complete::{anychar, char, none_of};
 use nom::combinator::{fail, opt, rest};
 use nom::multi::many0;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Address {
     LineNumber(u64),
     // LastLine, // TODO how do we detect last line?  From stdin, in particular
@@ -62,6 +62,7 @@ impl Equivalent for Function {
 
 type Progress<'a, T> = IResult<Input<'a>, T>;
 
+#[derive(Clone, Debug)]
 pub struct Command {
     pub start: Option<Address>,
     pub end: Option<Address>, // should not be Some if start is None
