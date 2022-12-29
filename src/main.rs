@@ -50,6 +50,9 @@ where R: Iterator<Item = io::Result<String>> {
         line_number += 1;
         read.clear();
         read.push_str(&line);
+        // lines() strips newline, which is nice to avoid CRLF nonsense,
+        // but we want it to be part of the pattern space so we can manipulate it
+        read.push('\n');
 
         for (cmd_index, cmd) in commands.iter().enumerate() {
             let should_apply = match (&cmd.start, &cmd.end) {
@@ -108,8 +111,8 @@ where R: Iterator<Item = io::Result<String>> {
                         hold.push_str("\n");
                         hold.push_str(&read);
                     },
-                    Fi(text) => writeln!(output, "{}", text).unwrap(),
-                    Fp => writeln!(output, "{}", read).unwrap(),
+                    Fi(text) => write!(output, "{}", text).unwrap(),
+                    Fp => write!(output, "{}", read).unwrap(),
                     Fs(regex, replacement) => {
                         // TODO greedy match
                         let changed = regex::replace(&regex, &read, &mut write, replacement);
@@ -123,7 +126,7 @@ where R: Iterator<Item = io::Result<String>> {
 
             }
         }
-        if !no_print { writeln!(output, "{}", read).unwrap(); }
+        if !no_print { write!(output, "{}", read).unwrap(); }
         buf.clear();
     }
     Ok(())
