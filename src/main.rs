@@ -2,10 +2,8 @@ use clap::Parser;
 use std::io;
 use std::io::{BufRead, Write};
 
-mod commands;
-mod regex;
-use commands::{Command, Function, match_address, parse_command_finish};
-use crate::regex::parser::{Syntax, new_regex_input};
+use tsed::commands::{Command, Function, match_address, parse_command_finish};
+use tsed::regex::parser::{Syntax, new_regex_input};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -103,7 +101,7 @@ where R: Iterator<Item = io::Result<String>> {
                     Fp => writeln!(output, "{}", read).unwrap(),
                     Fs(regex, replacement) => {
                         // TODO greedy match
-                        let changed = regex::replace(&regex, &read, &mut write, replacement);
+                        let changed = tsed::regex::replace(&regex, &read, &mut write, replacement);
                         if changed {
                             std::mem::swap(&mut read, &mut write);
                             write.clear();
