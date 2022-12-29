@@ -1,5 +1,5 @@
 use crate::regex;
-use crate::regex::parser::{Input, Progress, Syntax};
+use crate::regex::parser_state::{Input, Progress, Syntax};
 use crate::regex::equivalent::Equivalent;
 
 use ::regex::Regex;
@@ -82,7 +82,7 @@ lazy_static! {
 }
 
 // convert sed \1 syntax to regex crate $1 and escape $
-pub fn clean_replacement(syntax: &Syntax, mut s: String) -> String {
+fn clean_replacement(syntax: &Syntax, mut s: String) -> String {
     if syntax == &Syntax::Teal {
         return s
     }
@@ -98,7 +98,7 @@ pub fn clean_replacement(syntax: &Syntax, mut s: String) -> String {
     s
 }
 
-pub fn parse_function(cmd: Input) -> Progress<Function> {
+fn parse_function(cmd: Input) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
     use Function::{*};
     match function {
@@ -134,7 +134,7 @@ pub fn match_address(addr: &Address, text: &str, line_num: u64) -> bool {
     }
 }
 
-pub fn parse_address(s: Input) -> Progress<Address> {
+fn parse_address(s: Input) -> Progress<Address> {
     alt((line_number_addr, context_addr))(s)
 }
 
@@ -191,11 +191,11 @@ pub mod tests {
     use super::*;
     use super::Address::*;
     use super::Function::*;
-    use crate::new_regex_input;
+    use crate::regex::new_parser_input;
     use assert_ok::assert_ok;
 
     fn function_equivalent(input: &str, expected: &Function, complete: bool) {
-        let p_f = parse_function(new_regex_input(input));
+        let p_f = parse_function(new_parser_input(input));
         let (rest, f) = assert_ok!(&p_f);
         assert!(f.equivalent(expected), "unexpected function constructor {:?}", f);
         if complete {
@@ -223,7 +223,7 @@ pub mod tests {
     }
 
     fn address_equivalent(input: &str, expected: &Address) {
-        let p_addr = parse_address(new_regex_input(input));
+        let p_addr = parse_address(new_parser_input(input));
         let (rest, addr) = assert_ok!(&p_addr);
         assert!(addr.equivalent(expected), "unexpected Address constructor {:?}", addr);
         assert_eq!(rest.fragment(), &"");
