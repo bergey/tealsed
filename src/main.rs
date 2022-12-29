@@ -3,7 +3,7 @@ use std::io;
 use std::io::{BufRead, Write};
 
 use tsed::commands::{Command, Function, match_address, parse_command_finish};
-use tsed::regex::parser::{Syntax, new_regex_input};
+use tsed::regex::parser_state::{Syntax, new_parser_input};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -141,7 +141,7 @@ fn main() -> io::Result<()> {
         if args.commands.len() == 0 {
             match args.command_or_files.first() {
                 Some(arg) => {
-                    let mut s = new_regex_input(&arg);
+                    let mut s = new_parser_input(&arg);
                     s.extra.syntax = syntax;
                     parse_command_finish(s)
                         .map(|cmd| Vec::from([cmd]))?
@@ -150,7 +150,7 @@ fn main() -> io::Result<()> {
             }
         } else {
             args.commands.iter()
-                .map(|cmd| parse_command_finish(new_regex_input(&cmd)))
+                .map(|cmd| parse_command_finish(new_parser_input(&cmd)))
                 .collect::<io::Result<Vec<Command>>>()?
         };
 
@@ -189,7 +189,7 @@ pub mod tests {
 
     fn test_commands(cmd_strs: &[&str], input: &str, expected: &str) {
         let r_commands = cmd_strs.iter()
-                .map(|cmd| parse_command_finish(new_regex_input(&cmd)))
+                .map(|cmd| parse_command_finish(new_parser_input(&cmd)))
                 .collect::<io::Result<Vec<Command>>>();
         let commands = assert_ok!(r_commands);
         let mut lines = Vec::new();

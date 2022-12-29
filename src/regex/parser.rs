@@ -1,43 +1,14 @@
-extern crate nom;
+use crate::regex::parser_state::*;
+
 use nom::character::complete::{anychar, char, none_of, one_of, u32};
 use nom::branch::alt;
 use nom::error::{ Error, ErrorKind};
 use nom::{
     multi::{many0, many1},
     combinator::{not, opt, peek},
-    Err, Finish, IResult,
+    Err, Finish
 };
-use nom_locate::{LocatedSpan};
 use regex_syntax::ast::{Alternation, Assertion, AssertionKind, Ast, CaptureName, Class, ClassBracketed, ClassSet, ClassSetItem, ClassSetRange, ClassSetUnion, Concat, Flags, Group, GroupKind, Literal, LiteralKind, Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Syntax {
-    Basic, // POSIX basic, according man re_syntax
-    Extended,  // POSIX Extended, like egrep
-    Teal, // probably the syntax of regex crate except substitutions, TBD
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ExtraState {
-    pub last_regex: u32,
-    // below are not state; they are set once at start of parsing
-    pub end_char: char,
-    pub syntax: Syntax,
-    pub gnu: bool,
-}
-
-pub type Input<'a> = LocatedSpan<&'a str, ExtraState>;
-
-pub type Progress<'a, T = Ast> = IResult<Input<'a>, T>;
-
-pub fn new_regex_input<'a>(s: &'a str) -> Input<'a> {
-    LocatedSpan::new_extra(s, ExtraState {
-        last_regex: 0,
-        end_char: '/',
-        syntax: Syntax::Teal,
-        gnu: false
-    })
-}
 
 // Construct a regex::ast Position from a nom_locate LocatedSpan
 fn position(s: Input) -> Position {
@@ -329,7 +300,7 @@ pub fn parse(end_char: char, mut s: Input) -> Progress {
 }
 
 pub fn parse_complete(end_char: char, s: &str) -> Result<Ast, nom::error::Error<Input>> {
-    let s = new_regex_input(s);
+    let s = new_parser_input(s);
     let (_, ast) = parse(end_char, s).finish()?;
     Ok(ast)
 }
