@@ -3,6 +3,7 @@ use crate::regex::parser_state::{Input, Progress, Syntax};
 use crate::regex::equivalent::Equivalent;
 
 use ::regex::Regex;
+use std::fmt;
 use std::io;
 use lazy_static::lazy_static;
 
@@ -27,6 +28,16 @@ impl Equivalent for Address {
             (LineNumber(n), LineNumber(m)) => n == m,
             (Context(_), Context(_)) => true,
             _ => false
+        }
+    }
+}
+
+impl fmt::Display for Address {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        use Address::*;
+        match self {
+            LineNumber(n) => write!(out, "{}", n),
+            Context(regex) => write!(out, "/{}/", regex),
         }
     }
 }
@@ -62,11 +73,49 @@ impl Equivalent for Function {
     }
 }
 
+impl fmt::Display for Function {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        use Function::*;
+        match self {
+            Fi(s) => write!(out, "i{}", s),
+            // TODO handle / in regex text, pick another separator
+            Fs(regex, replacement) => write!(out, "s/{}/{}/", regex, replacement),
+            _ => {
+                let c = match self {
+                    Equals => "=",
+                    D => "D",
+                    Fd => "d",
+                    G => "G",
+                    Fg => "g",
+                    H => "H",
+                    Fh => "h",
+                    Fp => "p",
+                    Fx => "x",
+                    _ => panic!("no way to display Function {:?}", self)
+                };
+                write!(out, "{}", c)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Command {
     pub start: Option<Address>,
     pub end: Option<Address>, // should not be Some if start is None
     pub function: Function,
+}
+
+impl fmt::Display for Command {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(start) = &self.start {
+            write!(out, "{}", start)?;
+        }
+        if let Some(end) = &self.end {
+            write!(out, ",{}", end)?;
+        }
+        write!(out, "{}", self.function)
+    }
 }
 
 fn take_until(sep: char, s: Input) -> Progress<String> {
