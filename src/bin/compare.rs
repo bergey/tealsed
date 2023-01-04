@@ -3,13 +3,38 @@
 use tsed::commands::*;
 
 use regex::Regex;
-use std::cell::RefCell;
-use std::rc::Rc;
+
+// generators store the most recently yielded value T, but also need
+// to track whether they have ever produced a value, or have produced
+// the last value (in case accidentally called again).
+enum Progress<T> { Start , Just(T) , End }
+
+impl<T> Progress<T> {
+    pub fn from_option(opt: Option<T>) -> Progress<T> {
+        match opt {
+            Some(val) => Progress::Just(val),
+            None => Progress::End
+        }
+    }
+}
+
+trait Generator {
+    type Yield;
+    type State;
+
+    // resume should advance the Generator iff next has never been called
+    // this way we don't need to insist that next() is called before resume(),
+    // nor make the caller handle the Progress::Start value
+    fn resume(&mut self) -> Option<Self::Yield>;
+    fn next(&mut self) -> Option<Self::Yield>;
+    fn state(&self) -> Self::State;
+}
 
 // Only the zero-arg constructors
 const FUNCTIONS: &'static [Function] = &[ Function::Equals, Function::D, Function::Fd, Function::G, Function::Fg, Function::H, Function::Fh, Function::Fp, Function::Fx ];
 const NAMES : &'static [&'static str] = &["alpha", "bravo"];
 
+#[derive(Clone, Debug)]
 struct Names {
     strings: std::slice::Iter<'static, &'static str>,
     used_count: usize,
@@ -41,68 +66,74 @@ impl Iterator for Names {
 }
 
 struct AddressIter {
-    names: Rc<RefCell<Names>>,
-    count: u8,
+    before: Names,
+    current: Progress<Address>,
+    after: Names,
 }
 
 impl AddressIter {
-    fn new(names: Rc<RefCell<Names>>) -> AddressIter {
-        AddressIter { names, count: 0}
-    }
-
-    fn reset(&mut self) {
-        self.count = 0;
+    fn new(names: Names) -> AddressIter {
+        AddressIter { before: names.clone(), current: Progress::Start, after: names }
     }
 }
 
-impl Iterator for AddressIter {
-    type Item = Address;
+impl Generator for AddressIter {
+    type Yield = Address;
+    type State = Names;
 
     fn next(&mut self) -> Option<Address> {
         use Address::*;
-        self.count += 1;
-        match self.count {
-            1 => {
-                // share line number supply between iterators?
-                Some(LineNumber(1))   
-            },
-            2 => {
-                let mut names = self.names.borrow_mut();
-                names.next().map( |name| Context(Regex::new(&name).unwrap()))
+        let ret = match &self.current {
+            Progress::Start => Some(LineNumber(1)),
+            Progress::Just(LineNumber(_)) => {
+                self.after = self.before.clone();
+                self.after.next().map( |name| Context(Regex::new(&name).unwrap()))
             },
             _ => None,
+        };
+        self.current = Progress::from_option(ret.clone());
+        ret
+    }
+
+    fn resume(&mut self) -> Option<Address> {
+        match &self.current {
+            Progress::Start => self.next(),
+            Progress::Just(addr) => Some(addr.clone()),
+            Progress::End => None,
         }
+    }
+
+    fn state(&self) -> Names {
+        self.after.clone()
     }
 }
 
 struct FunctionIter {
-    // multiple iterators share a supply of names so that names are unique within each command
-    names: Rc<RefCell<Names>>,
-    count: usize
+    before: Names,
+    current: Progress<Function>,
+    count: usize,
+    after: Names
 }
 
 impl FunctionIter {
-    fn new(names: Rc<RefCell<Names>>) -> FunctionIter {
-        FunctionIter { names, count: 0 }
-    }
-
-    fn reset(&mut self) {
-        self.count = 0;
+    fn new(names: Names) -> FunctionIter {
+        FunctionIter { before: names.clone(), current: Progress::Start, count: 0, after: names }
     }
 }
 
-impl Iterator for FunctionIter {
-    type Item = Function;
+impl Generator for FunctionIter {
+    type Yield = Function;
+    type State = Names;
 
     fn next(&mut self) -> Option<Function> {
         use Function::*;
         self.count += 1;
-        let mut names = self.names.borrow_mut();
         match self.count {
-            1 => names.next().map( |n| Fi(n.to_string())),
+            1 => self.after.next().map( |n| Fi(n.to_string())),
             2 => {
-                let o_regex = names.next();
-                let o_replacement = names.next();
+                self.after = self.before.clone();
+                let o_regex = self.after.next();
+                let o_replacement = self.after.next();
                 match (o_regex, o_replacement) {
                     (Some(regex), Some(replacement)) =>
                         Some(Fs(Regex::new(regex).unwrap(), replacement.to_string())),
@@ -112,60 +143,84 @@ impl Iterator for FunctionIter {
             _ => FUNCTIONS.get(self.count - 3).map(|f| f.clone())
         }
     }
+
+    fn resume(&mut self) -> Option<Function> {
+        match &self.current {
+            Progress::Start => self.next(),
+            Progress::Just(f) => Some(f.clone()),
+            Progress::End => None,
+        }
+    }
+
+    fn state(&self) -> Names {
+        self.after.clone()
+    }
 }
 
 struct CommandIter {
-    names: Rc<RefCell<Names>>,
-    address: u8, // 0, 1, or 2
-    start: Option<Address>, // last chosen, keep using until end runs out
-    start_iter: AddressIter,
-    end: Option<Address>,
-    end_iter: AddressIter,
+    address_count: i8, // [-1, 3], the bounds representing before / after
+    start: AddressIter,
+    end: AddressIter,
     function: FunctionIter,
+    before: Names,
+    after: Names, // unused until we construct programs with > 1 command
 }
 
 impl CommandIter {
-    fn new() -> CommandIter {
-        let names = Rc::new(RefCell::new(Names::new()));
+    fn new(names: Names) -> CommandIter {
         CommandIter {
-            names: names.clone(),
-            address: 1, // 0 case is handled before first call to next_addr_pair
-            start: None,
-            start_iter: AddressIter::new(names.clone()),
-            end: None,
-            end_iter: AddressIter::new(names.clone()),
+            address_count: -1,
+            start: AddressIter::new(names.clone()),
+            end: AddressIter::new(names.clone()),
             function: FunctionIter::new(names.clone()),
+            before: names.clone(),
+            after: names
+        }
+    }
+
+    fn resume_addr_pair(&mut self) -> Option<(Option<Address>, Option<Address>)> {
+        match self.address_count {
+            -1 => self.next_addr_pair(),
+            0 => Some((None, None)),
+            1 => Some((self.start.resume(), None)),
+            2 => Some((self.start.resume(), self.end.resume())) ,
+            _ => None
         }
     }
 
     // [(None, None)] ++ [(Some a, None) | a <- AddressIter] ++ [(Some a, Some b) | a <- AddressIter, b <- AddressIter ]
     fn next_addr_pair(&mut self) -> Option<(Option<Address>, Option<Address>)> {
-        match self.address {
-            // 0 => {
-            //     self.address += 1;
-            //     Some((None, None))
-            // }G,
+        match self.address_count {
+            -1 => {
+                self.address_count += 1;
+                Some((None, None))
+            }
+            0 => {
+                // there's only one pair with 0 addresses, so we know we already yielded the last such element
+                self.address_count += 1;
+                Some((self.start.next(), None))
+            }
             1 => {
-                let start = self.start_iter.next();
+                let start = self.start.next();
                 if start.is_some() {
                     Some((start, None))
                 } else {
-                    self.address += 1;
-                    self.start_iter.reset();
-                    self.start = self.start_iter.next();
-                    self.next_addr_pair()
+                    self.address_count += 1;
+                    self.start = AddressIter::new(self.before.clone());
+                    // don't need to reset end because we have not been advancing it
+                    Some((self.start.next(), self.end.next()))
                 }
             },
             2 => {
-                match self.end_iter.next() {
-                    Some(end) => Some((self.start.clone(), Some(end))),
+                match self.end.next() {
+                    Some(end) => Some((self.start.resume(), Some(end))),
                     None => {
-                        self.start = self.start_iter.next();
-                        self.end_iter.reset();
-                        if self.start.is_none() {
-                            self.address += 1;
+                        let start = self.start.next();
+                        self.end = AddressIter::new(self.start.state());
+                        if start.is_none() {
+                            self.address_count += 1; // finished
                         }
-                        self.next_addr_pair()
+                        Some((start, self.end.next()))
                     }
                 }
             },
@@ -174,35 +229,38 @@ impl CommandIter {
     }
 }
 
-impl Iterator for CommandIter {
-    type Item = Command;
+impl Generator for CommandIter {
+    type Yield = Command;
+    type State = Names;
+
+    fn resume(&mut self) -> Option<Command> {
+        match (self.resume_addr_pair(), self.function.resume()) {
+            (Some((start, end)), Some(function)) => Some(Command { start, end, function }),
+            _ => None
+        }
+    }
 
     fn next(&mut self) -> Option<Command> {
-        // fresh name supply for each command
-        // eventually this will be fresh per Program (list of Commands)
-        self.names.replace(Names::new());
-        match self.function.next() {
-            Some(function) => Some(Command { start: self.start.clone(), end: self.end.clone(), function }),
-            None => {
-                // try the next address
-                self.function.reset();
-                match self.next_addr_pair() {
-                    // TODO move this into next_addr_pair?
-                    Some((start, end)) => {
-                        self.start = start;
-                        self.end = end;
-                        self.next()
-                    },
-                    None => None
-                }
+        match (self.resume_addr_pair(), self.function.next()) {
+            (Some((start, end)), Some(function)) => Some(Command { start, end, function }),
+            (Some(_), None) => {
+                self.next_addr_pair();
+                self.function = FunctionIter::new(self.end.state());
+                self.next() // avoid repeating the same match we're in
             }
+            (None, _) => None,
         }
+    }
+
+    fn state(&self) -> Names {
+        self.after.clone()
     }
 }
 
 fn main() {
-    let gen = CommandIter::new();
-    for cmd in gen {
+    let mut gen = CommandIter::new(Names::new());
+    // for cmd in gen {
+    while let Some(cmd) = gen.next() {
         println!("{}", cmd);
     }
 }
