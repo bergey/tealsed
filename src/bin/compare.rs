@@ -32,7 +32,7 @@ trait Generator {
 
 // Only the zero-arg constructors
 const FUNCTIONS: &'static [Function] = &[ Function::Equals, Function::D, Function::Fd, Function::G, Function::Fg, Function::H, Function::Fh, Function::Fp, Function::Fx ];
-const NAMES : &'static [&'static str] = &["alpha", "bravo"];
+const NAMES : &'static [&'static str] = &["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
 
 #[derive(Clone, Debug)]
 struct Names {
@@ -162,8 +162,7 @@ struct CommandIter {
     start: AddressIter,
     end: AddressIter,
     function: FunctionIter,
-    before: Names,
-    after: Names, // unused until we construct programs with > 1 command
+    // before is start.before; after is function.after
 }
 
 impl CommandIter {
@@ -172,9 +171,7 @@ impl CommandIter {
             address_count: -1,
             start: AddressIter::new(names.clone()),
             end: AddressIter::new(names.clone()),
-            function: FunctionIter::new(names.clone()),
-            before: names.clone(),
-            after: names
+            function: FunctionIter::new(names),
         }
     }
 
@@ -206,7 +203,7 @@ impl CommandIter {
                     Some((start, None))
                 } else {
                     self.address_count += 1;
-                    self.start = AddressIter::new(self.before.clone());
+                    self.start = AddressIter::new(self.start.before.clone());
                     // don't need to reset end because we have not been advancing it
                     Some((self.start.next(), self.end.next()))
                 }
@@ -253,7 +250,7 @@ impl Generator for CommandIter {
     }
 
     fn state(&self) -> Names {
-        self.after.clone()
+        self.function.state()
     }
 }
 
@@ -261,6 +258,9 @@ fn main() {
     let mut gen = CommandIter::new(Names::new());
     // for cmd in gen {
     while let Some(cmd) = gen.next() {
-        println!("{}", cmd);
+        let mut gen2 = CommandIter::new(gen.state());
+        while let Some(c2) = gen2.next() {
+            println!("{}\n{}\n", cmd, c2);
+        }
     }
 }
