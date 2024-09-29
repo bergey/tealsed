@@ -43,7 +43,7 @@ where R: Iterator<Item = io::Result<String>> {
         in_matching_range.push(false);
     }
 
-    for r_line in input {
+    'next_line: for r_line in input {
         let line = r_line?;
         line_number += 1;
         read.clear();
@@ -72,7 +72,7 @@ where R: Iterator<Item = io::Result<String>> {
                     Equals => writeln!(output, "{}", line_number).unwrap(),
                     Fd => {
                         read.clear();
-                        break;
+                        continue 'next_line;
                     },
                     D => {
                         if let Some(ix) = read.find('\n') {
