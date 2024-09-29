@@ -224,6 +224,14 @@ impl CommandIter {
             _ => None
         }
     }
+
+    fn addr_state(&self) -> Names {
+        if self.address_count == 2 {
+            self.end.state()
+        } else {
+            self.start.state()
+        }
+    }
 }
 
 impl Generator for CommandIter {
@@ -242,7 +250,7 @@ impl Generator for CommandIter {
             (Some((start, end)), Some(function)) => Some(Command { start, end, function }),
             (Some(_), None) => {
                 self.next_addr_pair();
-                self.function = FunctionIter::new(self.end.state());
+                self.function = FunctionIter::new(self.addr_state());
                 self.next() // avoid repeating the same match we're in
             }
             (None, _) => None,
