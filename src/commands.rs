@@ -8,9 +8,7 @@ use std::io;
 use lazy_static::lazy_static;
 
 use nom;
-use nom::{Finish};
-use nom::branch::alt;
-use nom::character::complete::{anychar, char, none_of};
+use nom::{Finish, branch::alt, character::complete::{anychar, char, none_of}};
 use nom::combinator::{fail, opt, rest};
 use nom::multi::many0;
 
@@ -149,7 +147,7 @@ fn clean_replacement(syntax: &Syntax, mut s: String) -> String {
 
 fn parse_function(cmd: Input) -> Progress<Function> {
     let (s, function) = anychar(cmd)?;
-    use Function::{*};
+    use Function::*;
     match function {
         '=' => Ok((s, Equals)), // spec says only allows one addr, not a 2-addr range 🤷
         'd' => Ok((s, Fd)),
@@ -222,9 +220,9 @@ pub fn parse_command(s: Input) -> Progress<Command> {
     }?;
     let (s, function) = parse_function(s)?;
     Ok((s, Command {
-        start:  start,
-        end: end,
-        function: function
+        start,
+        end,
+        function
     }))
 }
 
