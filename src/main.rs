@@ -29,8 +29,6 @@ struct Cli {
 
 fn run_commands<R>(commands: &[Command], input: R, output: &mut dyn Write, no_print: bool) -> io::Result<()>
 where R: Iterator<Item = io::Result<String>> {
-    // input buffer, reused for each line
-    let mut buf = String::new();
     let mut line_number = 0;
 
     // swap the roles of these buffers as we make subsequent replacements
@@ -117,7 +115,6 @@ where R: Iterator<Item = io::Result<String>> {
             }
         }
         if !no_print { writeln!(output, "{}", read).unwrap(); }
-        buf.clear();
     }
     Ok(())
 }
