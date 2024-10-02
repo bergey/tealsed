@@ -69,16 +69,13 @@ where R: Iterator<Item = io::Result<String>> {
                 match &cmd.function {
                     Equals => writeln!(output, "{}", line_number).unwrap(),
                     Fd => {
-                        read.clear();
                         continue 'next_line;
                     },
                     D => {
                         if let Some(ix) = read.find('\n') {
-                            write.push_str(&read[ix+1..]);
-                            std::mem::swap(&mut read, &mut write);
-                            write.clear();
+                            read.replace_range(0..ix+1, "");
                         } else {
-                            read.clear();
+                            continue 'next_line;
                         }
                     },
                     Fg => {
