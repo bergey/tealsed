@@ -75,7 +75,7 @@ impl fmt::Display for Function {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         use Function::*;
         match self {
-            Fi(s) => write!(out, "i{}", s),
+            Fi(s) => write!(out, "i\\\n{}", s),
             // TODO handle / in regex text, pick another separator
             Fs(regex, replacement) => write!(out, "s/{}/{}/", regex, replacement),
             _ => {
