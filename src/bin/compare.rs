@@ -2,6 +2,7 @@
 
 use tsed::commands::*;
 
+use std::process;
 use regex::Regex;
 
 // generators store the most recently yielded value T, but also need
@@ -262,13 +263,38 @@ impl Generator for CommandIter {
     }
 }
 
-fn main() {
+fn invoke(program: &str, commands: &[Command]) -> std::io::Result<process::Output> {
+    let mut p = process::Command::new(program);
+    for c in commands {
+        p.arg("-e");
+        p.arg(format!("{}", c));
+    }
+    p.arg("compare_test_data.txt");
+    p.output()
+}
+
+fn main() -> std::io::Result<()> {
     let mut gen = CommandIter::new(Names::new());
     // for cmd in gen {
     while let Some(cmd) = gen.next() {
         let mut gen2 = CommandIter::new(gen.state());
         while let Some(c2) = gen2.next() {
-            println!("{}\n{}\n", cmd, c2);
+            let commands = vec![cmd.clone(), c2.clone()];
+            let display_commands = format!("'{cmd}' '{c2}'");
+            let expected = invoke("sed", &commands)?;
+            if !expected.status.success() {
+                println!("sed {display_commands} exited with {}", expected.status);
+            }
+            let actual = invoke("tsed", &commands)?;
+            if !actual.status.success() {
+                println!("tsed {display_commands} exited with {}", expected.status);
+            }
+            if expected.stdout != actual.stdout {
+                let s_expected = String::from_utf8_lossy(&expected.stdout);
+                let s_actual = String::from_utf8_lossy(&actual.stdout);
+                println!("{display_commands}\nexpected:\n{s_expected}\ngot:\n{s_actual}");
+            }
         }
     }
+    Ok(())
 }
