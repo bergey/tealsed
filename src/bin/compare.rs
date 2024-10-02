@@ -130,7 +130,9 @@ impl Generator for FunctionIter {
         use Function::*;
         self.count += 1;
         match self.count {
-            1 => self.after.next().map( |n| Fi(n.to_string())),
+            // TODO fix Display for Fi
+            // 1 => self.after.next().map( |n| Fi(n.to_string())),
+            1 => Some(Equals),
             2 => {
                 self.after = self.before.clone();
                 let o_regex = self.after.next();
