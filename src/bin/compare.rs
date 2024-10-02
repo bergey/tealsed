@@ -2,19 +2,23 @@
 
 use tsed::commands::*;
 
-use std::process;
 use regex::Regex;
+use std::process;
 
 // generators store the most recently yielded value T, but also need
 // to track whether they have ever produced a value, or have produced
 // the last value (in case accidentally called again).
-enum Progress<T> { Start , Just(T) , End }
+enum Progress<T> {
+    Start,
+    Just(T),
+    End,
+}
 
 impl<T> Progress<T> {
     pub fn from_option(opt: Option<T>) -> Progress<T> {
         match opt {
             Some(val) => Progress::Just(val),
-            None => Progress::End
+            None => Progress::End,
         }
     }
 }
@@ -32,8 +36,18 @@ trait Generator {
 }
 
 // Only the zero-arg constructors
-const FUNCTIONS: &'static [Function] = &[ Function::Equals, Function::D, Function::Fd, Function::G, Function::Fg, Function::H, Function::Fh, Function::Fp, Function::Fx ];
-const NAMES : &'static [&'static str] = &["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
+const FUNCTIONS: &'static [Function] = &[
+    Function::Equals,
+    Function::D,
+    Function::Fd,
+    Function::G,
+    Function::Fg,
+    Function::H,
+    Function::Fh,
+    Function::Fp,
+    Function::Fx,
+];
+const NAMES: &'static [&'static str] = &["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
 
 #[derive(Clone, Debug)]
 struct Names {
@@ -50,13 +64,13 @@ impl Names {
     }
 
     fn used(&self) -> &[&'static str] {
-        &NAMES[0..self.used_count+1]
+        &NAMES[0..self.used_count + 1]
     }
 }
 
 impl Iterator for Names {
     type Item = &'static str;
-    
+
     fn next(&mut self) -> Option<&'static str> {
         let ret = self.strings.next();
         if ret.is_some() {
@@ -74,7 +88,11 @@ struct AddressIter {
 
 impl AddressIter {
     fn new(names: Names) -> AddressIter {
-        AddressIter { before: names.clone(), current: Progress::Start, after: names }
+        AddressIter {
+            before: names.clone(),
+            current: Progress::Start,
+            after: names,
+        }
     }
 }
 
@@ -88,8 +106,10 @@ impl Generator for AddressIter {
             Progress::Start => Some(LineNumber(1)),
             Progress::Just(LineNumber(_)) => {
                 self.after = self.before.clone();
-                self.after.next().map( |name| Context(Regex::new(&name).unwrap()))
-            },
+                self.after
+                    .next()
+                    .map(|name| Context(Regex::new(&name).unwrap()))
+            }
             _ => None,
         };
         self.current = Progress::from_option(ret.clone());
@@ -113,12 +133,17 @@ struct FunctionIter {
     before: Names,
     current: Progress<Function>,
     count: usize,
-    after: Names
+    after: Names,
 }
 
 impl FunctionIter {
     fn new(names: Names) -> FunctionIter {
-        FunctionIter { before: names.clone(), current: Progress::Start, count: 0, after: names }
+        FunctionIter {
+            before: names.clone(),
+            current: Progress::Start,
+            count: 0,
+            after: names,
+        }
     }
 }
 
@@ -138,12 +163,13 @@ impl Generator for FunctionIter {
                 let o_regex = self.after.next();
                 let o_replacement = self.after.next();
                 match (o_regex, o_replacement) {
-                    (Some(regex), Some(replacement)) =>
-                        Some(Fs(Regex::new(regex).unwrap(), replacement.to_string())),
-                    _ => None
+                    (Some(regex), Some(replacement)) => {
+                        Some(Fs(Regex::new(regex).unwrap(), replacement.to_string()))
+                    }
+                    _ => None,
                 }
-            },
-            _ => FUNCTIONS.get(self.count - 3).map(|f| f.clone())
+            }
+            _ => FUNCTIONS.get(self.count - 3).map(|f| f.clone()),
         }
     }
 
@@ -183,8 +209,8 @@ impl CommandIter {
             -1 => self.next_addr_pair(),
             0 => Some((None, None)),
             1 => Some((self.start.resume(), None)),
-            2 => Some((self.start.resume(), self.end.resume())) ,
-            _ => None
+            2 => Some((self.start.resume(), self.end.resume())),
+            _ => None,
         }
     }
 
@@ -210,7 +236,7 @@ impl CommandIter {
                     // don't need to reset end because we have not been advancing it
                     Some((self.start.next(), self.end.next()))
                 }
-            },
+            }
             2 => {
                 match self.end.next() {
                     Some(end) => Some((self.start.resume(), Some(end))),
@@ -223,8 +249,8 @@ impl CommandIter {
                         Some((start, self.end.next()))
                     }
                 }
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 
@@ -243,14 +269,22 @@ impl Generator for CommandIter {
 
     fn resume(&mut self) -> Option<Command> {
         match (self.resume_addr_pair(), self.function.resume()) {
-            (Some((start, end)), Some(function)) => Some(Command { start, end, function }),
-            _ => None
+            (Some((start, end)), Some(function)) => Some(Command {
+                start,
+                end,
+                function,
+            }),
+            _ => None,
         }
     }
 
     fn next(&mut self) -> Option<Command> {
         match (self.resume_addr_pair(), self.function.next()) {
-            (Some((start, end)), Some(function)) => Some(Command { start, end, function }),
+            (Some((start, end)), Some(function)) => Some(Command {
+                start,
+                end,
+                function,
+            }),
             (Some(_), None) => {
                 self.next_addr_pair();
                 self.function = FunctionIter::new(self.addr_state());
@@ -277,26 +311,47 @@ fn invoke(program: &str, commands: &[Command]) -> std::io::Result<process::Outpu
 
 fn main() -> std::io::Result<()> {
     let mut gen = CommandIter::new(Names::new());
-    // for cmd in gen {
     while let Some(cmd) = gen.next() {
-        let mut gen2 = CommandIter::new(gen.state());
-        while let Some(c2) = gen2.next() {
-            let commands = vec![cmd.clone(), c2.clone()];
-            let display_commands = format!("'{cmd}' '{c2}'");
-            let expected = invoke("sed", &commands)?;
-            if !expected.status.success() {
-                println!("sed {display_commands} exited with {}", expected.status);
-            }
-            let actual = invoke("tsed", &commands)?;
-            if !actual.status.success() {
-                println!("tsed {display_commands} exited with {}", expected.status);
-            }
-            if expected.stdout != actual.stdout {
-                let s_expected = String::from_utf8_lossy(&expected.stdout);
-                let s_actual = String::from_utf8_lossy(&actual.stdout);
-                println!("{display_commands}\nexpected:\n{s_expected}\ngot:\n{s_actual}");
-            }
+        // TODO exclude this in the generator
+        match (&cmd.start, &cmd.end, &cmd.function) {
+            (Some(_), Some(_), Function::Equals) => continue,
+            _ => (),
+        };
+        let commands = vec![cmd.clone()];
+        let expected = invoke("sed", &commands)?;
+        if !expected.status.success() {
+            println!("sed {cmd} exited with {}", expected.status);
+        }
+        let actual = invoke("target/debug/tsed", &commands)?;
+        if !actual.status.success() {
+            println!("tsed {cmd} exited with {}", expected.status);
+        }
+        if expected.stdout != actual.stdout {
+            let s_expected = String::from_utf8_lossy(&expected.stdout);
+            let s_actual = String::from_utf8_lossy(&actual.stdout);
+            println!("{cmd} {:?}\nexpected:\n{s_expected}\ngot:\n{s_actual}", cmd);
         }
     }
+    // pairs of commands
+    // while let Some(cmd) = gen.next() {
+    //     let mut gen2 = CommandIter::new(gen.state());
+    //     while let Some(c2) = gen2.next() {
+    //         let commands = vec![cmd.clone(), c2.clone()];
+    //         let display_commands = format!("'{cmd}' '{c2}'");
+    //         let expected = invoke("sed", &commands)?;
+    //         if !expected.status.success() {
+    //             println!("sed {display_commands} exited with {}", expected.status);
+    //         }
+    //         let actual = invoke("tsed", &commands)?;
+    //         if !actual.status.success() {
+    //             println!("tsed {display_commands} exited with {}", expected.status);
+    //         }
+    //         if expected.stdout != actual.stdout {
+    //             let s_expected = String::from_utf8_lossy(&expected.stdout);
+    //             let s_actual = String::from_utf8_lossy(&actual.stdout);
+    //             println!("{display_commands}\nexpected:\n{s_expected}\ngot:\n{s_actual}");
+    //         }
+    //     }
+    // }
     Ok(())
 }
