@@ -43,6 +43,7 @@ where R: Iterator<Item = io::Result<String>> {
 
     'next_line: for r_line in input {
         let line = r_line?;
+        // println!("debug: {line} {}", in_matching_range[0]);
         line_number += 1;
         read.clear();
         read.push_str(&line);
@@ -51,16 +52,15 @@ where R: Iterator<Item = io::Result<String>> {
             let should_apply = match (&cmd.start, &cmd.end) {
                 (None, None) => true,
                 (Some(addr), None) => match_address(&addr, &read, line_number),
-                (Some(start), Some(end)) =>
-                    if in_matching_range[cmd_index] {
-                        let stop = match_address(&end, &read, line_number);
-                        in_matching_range[cmd_index] = !stop;
-                        true
-                    } else {
-                        let start = match_address(&start, &read, line_number);
-                        in_matching_range[cmd_index] = !start;
-                        start
-                    },
+                (Some(beginning), Some(end)) => {
+                    let in_range = in_matching_range[cmd_index];
+                    let start = match_address(&beginning, &read, line_number);
+                    let should_apply = in_range || start;
+                    // range with regex end always matches at least 2 lines, never ends on the line that started it
+                    in_matching_range[cmd_index] = (start && !in_range && end.is_regex()) ||
+                        (in_range && !match_address(&end, &read, line_number));
+                    should_apply
+                }
                 (None, Some(end)) => panic!("end address has no matching start {:?}", end)
             };
             if should_apply {
@@ -106,7 +106,6 @@ where R: Iterator<Item = io::Result<String>> {
                     },
                     Fx => std::mem::swap(&mut read, &mut hold),
                 }
-
             }
         }
         if !no_print { writeln!(output, "{}", read).unwrap(); }

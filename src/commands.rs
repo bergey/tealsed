@@ -19,6 +19,15 @@ pub enum Address {
     Context(Regex), // TODO case-insensitive
 }
 
+impl Address {
+    pub fn is_regex(&self) -> bool {
+        match self {
+            Address::LineNumber(_) => false,
+            Address::Context(_) => true,
+        }
+    }
+}
+
 impl Equivalent for Address {
     fn equivalent(&self, other: &Address) -> bool {
         use Address::*;
