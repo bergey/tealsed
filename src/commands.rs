@@ -165,7 +165,11 @@ fn parse_function(cmd: Input) -> Progress<Function> {
         'G' => Ok((s, G)),
         'h' => Ok((s, Fh)),
         'H' => Ok((s, H)),
-        'i' => rest(s).map(|(s, i)| (s, Fi(i.to_string()))),
+        'i' => {
+            let (s, _) = char('\\')(s)?;
+            let (s, _) = char('\n')(s)?;
+            rest(s).map(|(s, i)| (s, Fi(i.to_string())))
+        },
         'p' => Ok((s, Fp)),
         's' => {
             let (s, sep) = anychar(s)?;
@@ -308,5 +312,12 @@ pub mod tests {
     #[test]
     fn clean_dollar() {
         assert_eq!(clean_replacement(&Syntax::Extended, "$foo".to_string()), "$$foo")
+    }
+
+    #[test]
+    fn parse_encode_fi() {
+        let input = Fi("foo".to_string());
+        let (_, actual) = parse_function(new_parser_input(&format!("{input}"))).finish().unwrap();
+        assert_eq!(actual, input)
     }
 }
