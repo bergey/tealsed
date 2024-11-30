@@ -80,6 +80,12 @@ impl Equivalent for Function {
     }
 }
 
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        self.equivalent(other)
+    }
+}
+
 impl fmt::Display for Function {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         use Function::*;
