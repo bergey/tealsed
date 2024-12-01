@@ -1,1 +1,4 @@
 /target
+/tests/*/afl_state
+/tests/*/corpus
+/tests/*/crashes
